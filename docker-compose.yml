@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  unipulse:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: unipulse_monitor
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:////app/data/unipulse.db
+      - DEFAULT_CHECK_INTERVAL=30
+      - ALERT_CONSECUTIVE_FAILURES=2
+      # Telegram Notification
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
