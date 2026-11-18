@@ -30,6 +30,7 @@ export const DeviceModal: React.FC<DeviceModalProps> = ({
   const [checkInterval, setCheckInterval] = useState(30);
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<string>('ONLINE');
+  const [isSimulation, setIsSimulation] = useState<boolean>(false);
 
   const prevIsOpenRef = React.useRef(false);
   const prevDeviceIdRef = React.useRef<number | undefined>(undefined);
@@ -61,6 +62,7 @@ export const DeviceModal: React.FC<DeviceModalProps> = ({
         setCheckInterval(device.check_interval || 30);
         setDescription(device.description || '');
         setStatus(device.status);
+        setIsSimulation(device.is_simulation || false);
       } else {
         setName('');
         setCategory('NETWORK_SWITCH');
@@ -75,6 +77,7 @@ export const DeviceModal: React.FC<DeviceModalProps> = ({
         setCheckInterval(30);
         setDescription('');
         setStatus('ONLINE');
+        setIsSimulation(false);
       }
     }
   }, [isOpen, device]);
@@ -106,6 +109,7 @@ export const DeviceModal: React.FC<DeviceModalProps> = ({
       snmp_version: checkType === 'SNMP' ? 'v2c' : undefined,
       description,
       status: status as any,
+      is_simulation: isSimulation,
     });
     onClose();
   };
@@ -235,6 +239,32 @@ export const DeviceModal: React.FC<DeviceModalProps> = ({
             </select>
           </div>
 
+          {/* Security & Simulation Mode Selector */}
+          <div className="p-3.5 rounded-xl border border-purple-200 dark:border-purple-800/80 bg-purple-50/60 dark:bg-purple-950/25">
+            <label className="flex items-start space-x-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isSimulation}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setIsSimulation(checked);
+                  if (checked && (!ipAddress || ipAddress === '')) {
+                    setIpAddress('127.0.0.1');
+                  }
+                }}
+                className="mt-0.5 rounded text-purple-600 focus:ring-purple-500 h-4 w-4 cursor-pointer"
+              />
+              <div className="space-y-0.5">
+                <span className="text-xs font-bold text-purple-900 dark:text-purple-200 flex items-center space-x-1.5">
+                  <span>🧪 ใช้อุปกรณ์จำลองสำหรับทดสอบ (Simulator / Mock Device)</span>
+                </span>
+                <p className="text-[11px] text-purple-700/80 dark:text-purple-300/70 leading-relaxed">
+                  ติ๊กเลือกหากกำลังทดสอบด้วยสคริปต์ <code className="bg-purple-100 dark:bg-purple-900/60 px-1 py-0.5 rounded font-mono text-[10px]">mock_switch.py</code> หรือ <code className="bg-purple-100 dark:bg-purple-900/60 px-1 py-0.5 rounded font-mono text-[10px]">mock_devices.py</code> บนเครื่องนี้ (127.0.0.1)
+                </p>
+              </div>
+            </label>
+          </div>
+
           {/* IP Address & Port */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-2">
@@ -244,11 +274,22 @@ export const DeviceModal: React.FC<DeviceModalProps> = ({
               <input
                 type="text"
                 required
-                placeholder="เช่น 192.168.1.50 หรือ projector.lh1.ac.th"
+                placeholder={isSimulation ? "127.0.0.1" : "เช่น 10.153.1.50 หรือ 192.168.1.50"}
                 value={ipAddress}
                 onChange={(e) => setIpAddress(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white font-mono focus:outline-none focus:border-purple-600 dark:focus:border-amber-400"
               />
+              <p className="text-[11px] mt-1">
+                {isSimulation ? (
+                  <span className="text-purple-700 dark:text-purple-300 font-medium">
+                    💡 โหมดจำลอง: อนุญาต Loopback 127.0.0.1 สำหรับรันสคริปต์ตัวจำลอง
+                  </span>
+                ) : (
+                  <span className="text-slate-500 dark:text-slate-400">
+                    🛡️ ความปลอดภัย: อนุญาตเฉพาะวงเครือข่ายภายในมหาวิทยาลัย (เช่น 10.153.x.x, 192.168.x.x)
+                  </span>
+                )}
+              </p>
             </div>
 
             <div>

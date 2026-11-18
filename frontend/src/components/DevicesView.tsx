@@ -253,7 +253,14 @@ export const DevicesView: React.FC<DevicesViewProps> = ({
 
                       {/* IP & Port */}
                       <td className="px-4 py-4 text-xs font-mono">
-                        <div className="text-slate-800 dark:text-slate-200 font-semibold">{device.ip_address}</div>
+                        <div className="flex items-center space-x-1.5">
+                          <span className="text-slate-800 dark:text-slate-200 font-semibold">{device.ip_address}</span>
+                          {device.is_simulation && (
+                            <span className="text-[10px] font-sans font-medium px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:border-purple-800/60" title="อุปกรณ์จำลองสำหรับทดสอบ (Simulator)">
+                              🧪 จำลอง
+                            </span>
+                          )}
+                        </div>
                         {device.port && <div className="text-slate-400 text-[11px]">Port: {device.port}</div>}
                       </td>
 

@@ -59,6 +59,7 @@ class DeviceBase(BaseModel):
     http_path: Optional[str] = None
     http_expected_code: int = 200
     is_active: bool = True
+    is_simulation: bool = Field(False, example=False)
     description: Optional[str] = None
 
 class DeviceCreate(DeviceBase):
@@ -82,6 +83,7 @@ class DeviceUpdate(BaseModel):
     http_path: Optional[str] = None
     http_expected_code: Optional[int] = None
     is_active: Optional[bool] = None
+    is_simulation: Optional[bool] = None
     status: Optional[str] = None
     description: Optional[str] = None
 

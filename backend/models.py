@@ -67,6 +67,7 @@ class Device(Base):
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
     
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_simulation: Mapped[bool] = mapped_column(Boolean, default=False) # True หากเป็นอุปกรณ์จำลอง (mock_switch / mock_devices)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     telemetry_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON format for CPU/RAM/Disk or AV state
     

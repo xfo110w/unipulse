@@ -12,6 +12,7 @@ from backend.schemas import (
     DeviceCreate, DeviceUpdate, DeviceRead, HealthLogRead, TelemetryPush, IncidentRead
 )
 from backend.monitor.scheduler import process_device_check
+from backend.security import validate_device_ip
 
 router = APIRouter(prefix="/api/v1/devices", tags=["Devices"])
 
@@ -53,6 +54,11 @@ async def list_devices(
 
 @router.post("", response_model=DeviceRead, status_code=status.HTTP_201_CREATED)
 async def create_device(payload: DeviceCreate, db: AsyncSession = Depends(get_db)):
+    # 🛡️ Validate IP against SSRF & campus subnet rules
+    is_valid, err_msg = validate_device_ip(payload.ip_address, payload.is_simulation)
+    if not is_valid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err_msg)
+
     device = Device(**payload.model_dump())
     db.add(device)
     await db.commit()
@@ -89,6 +95,14 @@ async def update_device(device_id: int, payload: DeviceUpdate, db: AsyncSession 
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
         
+    # 🛡️ Validate IP if IP or simulation mode is being updated
+    target_ip = payload.ip_address if payload.ip_address is not None else device.ip_address
+    target_sim = payload.is_simulation if payload.is_simulation is not None else device.is_simulation
+    if payload.ip_address is not None or payload.is_simulation is not None:
+        is_valid, err_msg = validate_device_ip(target_ip, target_sim)
+        if not is_valid:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err_msg)
+
     update_data = payload.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(device, key, value)

@@ -43,6 +43,7 @@ export interface Device {
   response_time_ms?: number;
   consecutive_failures: number;
   is_active: boolean;
+  is_simulation?: boolean;
   description?: string;
   telemetry_data?: string;
   created_at: string;

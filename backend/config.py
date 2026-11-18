@@ -29,6 +29,13 @@ class Settings:
     PORT_TIMEOUT: float = float(os.getenv("PORT_TIMEOUT", "1.5"))
     HTTP_TIMEOUT: float = float(os.getenv("HTTP_TIMEOUT", "2.5"))
     
+    # Security & IP Validation (SSRF Protection)
+    ALLOWED_SUBNETS: str = os.getenv(
+        "ALLOWED_SUBNETS",
+        "10.153.0.0/16,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    )
+    ALLOW_SIMULATION_MOCK: bool = os.getenv("ALLOW_SIMULATION_MOCK", "true").lower() in ("true", "1", "yes")
+    
     # Telegram Notification Settings (Configured via .env)
     @property
     def TELEGRAM_BOT_TOKEN(self) -> str:

@@ -36,7 +36,10 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(device),
     });
-    if (!res.ok) throw new Error('Failed to create device');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'ไม่สามารถบันทึกอุปกรณ์ได้');
+    }
     return res.json();
   },
 
@@ -46,7 +49,10 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(device),
     });
-    if (!res.ok) throw new Error('Failed to update device');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'ไม่สามารถอัปเดตอุปกรณ์ได้');
+    }
     return res.json();
   },
 

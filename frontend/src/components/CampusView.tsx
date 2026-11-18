@@ -150,6 +150,11 @@ export const CampusView: React.FC<CampusViewProps> = ({
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono mt-0.5 flex items-center space-x-2">
               <span>{d.ip_address}</span>
+              {d.is_simulation && (
+                <span className="text-[10px] font-sans px-1 rounded bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300">
+                  จำลอง
+                </span>
+              )}
               <span>•</span>
               <span className="text-slate-600 dark:text-slate-300">{d.check_type}</span>
               {d.response_time_ms && (
