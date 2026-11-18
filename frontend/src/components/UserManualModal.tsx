@@ -13,12 +13,20 @@ type ManualTab = 'dashboard' | 'campus' | 'devices' | 'incidents';
 
 export const UserManualModal: React.FC<UserManualModalProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<ManualTab>('dashboard');
+  const contentRef = React.useRef<HTMLDivElement>(null);
+
+  const handleTabChange = (tab: ManualTab) => {
+    setActiveTab(tab);
+    if (contentRef.current) {
+      contentRef.current.scrollTop = 0;
+    }
+  };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5">
-      <div className="bg-white dark:bg-[#120c24] border border-slate-200 dark:border-purple-900/60 rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white dark:bg-[#120c24] border border-slate-200 dark:border-purple-900/60 rounded-2xl max-w-4xl w-full h-[85vh] max-h-[680px] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         
         {/* Modal Header */}
         <div className="px-5 py-4 bg-gradient-to-r from-purple-800 to-purple-900 text-white flex items-center justify-between shrink-0 shadow-md">
@@ -50,7 +58,7 @@ export const UserManualModal: React.FC<UserManualModalProps> = ({ isOpen, onClos
         {/* Navigation Tabs (4 Sections Only) */}
         <div className="flex items-center overflow-x-auto bg-slate-100 dark:bg-[#160e2b] px-4 py-2 border-b border-slate-200 dark:border-purple-900/50 space-x-2 shrink-0">
           <button
-            onClick={() => setActiveTab('dashboard')}
+            onClick={() => handleTabChange('dashboard')}
             className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
               activeTab === 'dashboard'
                 ? 'bg-purple-700 text-amber-200 border border-purple-600 dark:bg-purple-800 dark:text-amber-200 dark:border-amber-400/40 shadow-xs'
@@ -62,7 +70,7 @@ export const UserManualModal: React.FC<UserManualModalProps> = ({ isOpen, onClos
           </button>
 
           <button
-            onClick={() => setActiveTab('campus')}
+            onClick={() => handleTabChange('campus')}
             className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
               activeTab === 'campus'
                 ? 'bg-purple-700 text-amber-200 border border-purple-600 dark:bg-purple-800 dark:text-amber-200 dark:border-amber-400/40 shadow-xs'
@@ -74,7 +82,7 @@ export const UserManualModal: React.FC<UserManualModalProps> = ({ isOpen, onClos
           </button>
 
           <button
-            onClick={() => setActiveTab('devices')}
+            onClick={() => handleTabChange('devices')}
             className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
               activeTab === 'devices'
                 ? 'bg-purple-700 text-amber-200 border border-purple-600 dark:bg-purple-800 dark:text-amber-200 dark:border-amber-400/40 shadow-xs'
@@ -86,7 +94,7 @@ export const UserManualModal: React.FC<UserManualModalProps> = ({ isOpen, onClos
           </button>
 
           <button
-            onClick={() => setActiveTab('incidents')}
+            onClick={() => handleTabChange('incidents')}
             className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
               activeTab === 'incidents'
                 ? 'bg-purple-700 text-amber-200 border border-purple-600 dark:bg-purple-800 dark:text-amber-200 dark:border-amber-400/40 shadow-xs'
@@ -99,7 +107,10 @@ export const UserManualModal: React.FC<UserManualModalProps> = ({ isOpen, onClos
         </div>
 
         {/* Tab Content Body */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 text-slate-800 dark:text-slate-200 text-sm leading-relaxed">
+        <div 
+          ref={contentRef}
+          className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-6 space-y-6 text-slate-800 dark:text-slate-200 text-sm leading-relaxed overscroll-contain"
+        >
           
           {/* TAB 1: DASHBOARD */}
           {activeTab === 'dashboard' && (
