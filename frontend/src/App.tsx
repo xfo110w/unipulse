@@ -8,6 +8,7 @@ import { IncidentsView } from './components/IncidentsView';
 import { SettingsView } from './components/SettingsView';
 import { DeviceModal } from './components/DeviceModal';
 import { DeviceLogsModal } from './components/DeviceLogsModal';
+import { UserManualModal } from './components/UserManualModal';
 import { DashboardStats, Device, Building, Incident } from './types';
 import { api } from './api';
 
@@ -27,6 +28,7 @@ export function App() {
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
   const [viewingLogsDevice, setViewingLogsDevice] = useState<Device | null>(null);
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
 
   // Theme state: defaults to 'light' (white background as requested), persists in localStorage
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -252,6 +254,11 @@ export function App() {
         }}
       />
 
+      <UserManualModal
+        isOpen={isManualModalOpen}
+        onClose={() => setIsManualModalOpen(false)}
+      />
+
       {/* Floating Small Dark/Light Mode Toggle Button */}
       <button
         onClick={() => setIsDarkMode(!isDarkMode)}
@@ -284,7 +291,7 @@ export function App() {
               </div>
             </div>
           </div>
-          <div className="flex items-center space-x-4 text-xs">
+          <div className="flex flex-wrap items-center gap-x-2.5 sm:gap-x-3 gap-y-1 text-xs">
             <a 
               href="https://www.bru.ac.th" 
               target="_blank" 
@@ -293,11 +300,18 @@ export function App() {
             >
               <span>เว็บไซต์หลัก bru.ac.th</span>
             </a>
-            <span>•</span>
+            <span className="text-slate-300 dark:text-purple-900">•</span>
+            <button
+              onClick={() => setIsManualModalOpen(true)}
+              className="text-purple-700 hover:text-purple-950 dark:text-amber-400 dark:hover:text-amber-300 transition-colors font-medium cursor-pointer"
+            >
+              <span>คู่มือการใช้งานระบบ</span>
+            </button>
+            <span className="text-slate-300 dark:text-purple-900">•</span>
             <a href="/docs" target="_blank" rel="noreferrer" className="text-slate-600 hover:text-purple-900 dark:text-purple-200/80 dark:hover:text-purple-200 transition-colors">
               API Docs
             </a>
-            <span>•</span>
+            <span className="text-slate-300 dark:text-purple-900">•</span>
             <span className="text-slate-400 dark:text-purple-300/40 font-mono">BRU UniPulse v1.0</span>
           </div>
         </div>
