@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Server, Building2, Globe, Settings2 } from 'lucide-react';
+import { X, Server, Building2, Globe, Settings2, ShieldCheck, Lock, Key } from 'lucide-react';
 import { Device, Building } from '../types';
 
 interface DeviceModalProps {
@@ -26,7 +26,14 @@ export const DeviceModal: React.FC<DeviceModalProps> = ({
   const [ipAddress, setIpAddress] = useState('');
   const [port, setPort] = useState<number | undefined>(undefined);
   const [checkType, setCheckType] = useState<'PING' | 'SNMP' | 'PORT' | 'HTTP' | 'PJLINK' | 'AGENT'>('PING');
+  const [snmpVersion, setSnmpVersion] = useState<'v2c' | 'v3'>('v2c');
   const [snmpCommunity, setSnmpCommunity] = useState('public');
+  const [snmpUsername, setSnmpUsername] = useState('admin');
+  const [snmpSecurityLevel, setSnmpSecurityLevel] = useState<'noAuthNoPriv' | 'authNoPriv' | 'authPriv'>('authPriv');
+  const [snmpAuthProtocol, setSnmpAuthProtocol] = useState<'SHA' | 'MD5'>('SHA');
+  const [snmpAuthKey, setSnmpAuthKey] = useState('');
+  const [snmpPrivProtocol, setSnmpPrivProtocol] = useState<'AES' | 'DES'>('AES');
+  const [snmpPrivKey, setSnmpPrivKey] = useState('');
   const [checkInterval, setCheckInterval] = useState(30);
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<string>('ONLINE');
@@ -58,7 +65,14 @@ export const DeviceModal: React.FC<DeviceModalProps> = ({
         setIpAddress(device.ip_address);
         setPort(device.port);
         setCheckType(device.check_type);
+        setSnmpVersion((device.snmp_version as 'v2c' | 'v3') || 'v2c');
         setSnmpCommunity(device.snmp_community || 'public');
+        setSnmpUsername(device.snmp_username || 'admin');
+        setSnmpSecurityLevel((device.snmp_security_level as any) || 'authPriv');
+        setSnmpAuthProtocol((device.snmp_auth_protocol as any) || 'SHA');
+        setSnmpAuthKey(device.snmp_auth_key || '');
+        setSnmpPrivProtocol((device.snmp_priv_protocol as any) || 'AES');
+        setSnmpPrivKey(device.snmp_priv_key || '');
         setCheckInterval(device.check_interval || 30);
         setDescription(device.description || '');
         setStatus(device.status);
@@ -73,7 +87,14 @@ export const DeviceModal: React.FC<DeviceModalProps> = ({
         setIpAddress('');
         setPort(undefined);
         setCheckType('PING');
+        setSnmpVersion('v2c');
         setSnmpCommunity('public');
+        setSnmpUsername('admin');
+        setSnmpSecurityLevel('authPriv');
+        setSnmpAuthProtocol('SHA');
+        setSnmpAuthKey('');
+        setSnmpPrivProtocol('AES');
+        setSnmpPrivKey('');
         setCheckInterval(30);
         setDescription('');
         setStatus('ONLINE');
@@ -105,8 +126,14 @@ export const DeviceModal: React.FC<DeviceModalProps> = ({
       port: checkType === 'SNMP' && !port ? 161 : (port ? Number(port) : undefined),
       check_type: checkType,
       check_interval: Number(checkInterval),
-      snmp_community: checkType === 'SNMP' ? snmpCommunity : undefined,
-      snmp_version: checkType === 'SNMP' ? 'v2c' : undefined,
+      snmp_version: checkType === 'SNMP' ? snmpVersion : undefined,
+      snmp_community: checkType === 'SNMP' && snmpVersion === 'v2c' ? snmpCommunity : undefined,
+      snmp_username: checkType === 'SNMP' && snmpVersion === 'v3' ? snmpUsername : undefined,
+      snmp_security_level: checkType === 'SNMP' && snmpVersion === 'v3' ? snmpSecurityLevel : undefined,
+      snmp_auth_protocol: checkType === 'SNMP' && snmpVersion === 'v3' && snmpSecurityLevel !== 'noAuthNoPriv' ? snmpAuthProtocol : undefined,
+      snmp_auth_key: checkType === 'SNMP' && snmpVersion === 'v3' && snmpSecurityLevel !== 'noAuthNoPriv' ? snmpAuthKey : undefined,
+      snmp_priv_protocol: checkType === 'SNMP' && snmpVersion === 'v3' && snmpSecurityLevel === 'authPriv' ? snmpPrivProtocol : undefined,
+      snmp_priv_key: checkType === 'SNMP' && snmpVersion === 'v3' && snmpSecurityLevel === 'authPriv' ? snmpPrivKey : undefined,
       description,
       status: status as any,
       is_simulation: isSimulation,
@@ -322,7 +349,7 @@ export const DeviceModal: React.FC<DeviceModalProps> = ({
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-purple-600 dark:focus:border-amber-400"
               >
                 <option value="PING">ICMP Ping (ตรวจว่าเปิด/ดับ ด้วยความเร็วสูง)</option>
-                <option value="SNMP">SNMP v2c Check (สำหรับ Switch/Router/AP พอร์ต 161 ดึง Uptime)</option>
+                <option value="SNMP">SNMP (v2c / v3) Check (สำหรับ Switch/Router/AP พอร์ต 161 ดึง Uptime)</option>
                 <option value="PJLINK">PJLink Protocol (มาตรฐานโปรเจกเตอร์ Epson/Panasonic พอร์ต 4352)</option>
                 <option value="PORT">TCP Port Check (ตรวจสอบว่าเปิดพอร์ตหรือไม่)</option>
                 <option value="HTTP">HTTP/HTTPS Endpoint Check (เว็บเซิร์ฟเวอร์/API)</option>
@@ -347,39 +374,194 @@ export const DeviceModal: React.FC<DeviceModalProps> = ({
 
           {/* SNMP Settings (Shown if SNMP is selected) */}
           {checkType === 'SNMP' && (
-            <div className="bg-sky-50 dark:bg-slate-800/60 border border-sky-200 dark:border-sky-500/30 rounded-xl p-3.5 space-y-3">
-              <div className="flex items-center space-x-2 text-sky-700 dark:text-sky-400 font-semibold text-xs">
-                <span>📡 การตั้งค่า SNMP v2c (Network Switch Monitoring)</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    SNMP Community String
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="เช่น public หรือ monitor_read"
-                    value={snmpCommunity}
-                    onChange={(e) => setSnmpCommunity(e.target.value)}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-sky-500"
-                  />
+            <div className="bg-sky-50/70 dark:bg-slate-800/70 border border-sky-200 dark:border-sky-500/30 rounded-xl p-3.5 space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2 text-sky-700 dark:text-sky-400 font-bold text-xs">
+                  <span>📡 การตั้งค่า SNMP Monitoring (Network Switch / Router / AP)</span>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    SNMP Port (UDP)
-                  </label>
-                  <input
-                    type="number"
-                    value={port || 161}
-                    onChange={(e) => setPort(Number(e.target.value))}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-sky-500"
-                  />
+                {/* Version Selector (v2c vs v3) */}
+                <div className="flex items-center p-0.5 bg-slate-200/80 dark:bg-slate-900 rounded-lg text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setSnmpVersion('v2c')}
+                    className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+                      snmpVersion === 'v2c'
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    SNMP v2c
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSnmpVersion('v3')}
+                    className={`px-2.5 py-1 rounded-md transition cursor-pointer flex items-center space-x-1 ${
+                      snmpVersion === 'v3'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <ShieldCheck className="h-3 w-3" />
+                    <span>SNMP v3 (USM)</span>
+                  </button>
                 </div>
               </div>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                💡 ระบบจะส่งคำสั่ง SNMP GET ไปยัง OID <code className="text-sky-600 dark:text-sky-300 font-bold">1.3.6.1.2.1.1.3.0 (sysUpTime)</code> เพื่อยืนยันว่าสวิตช์ทำงานอยู่และดึงระยะเวลาเปิดเครื่อง
-              </p>
+
+              {/* Version 2c Fields */}
+              {snmpVersion === 'v2c' ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        SNMP Community String *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="เช่น public หรือ monitor_read"
+                        value={snmpCommunity}
+                        onChange={(e) => setSnmpCommunity(e.target.value)}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        SNMP Port (UDP)
+                      </label>
+                      <input
+                        type="number"
+                        value={port || 161}
+                        onChange={(e) => setPort(Number(e.target.value))}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                    💡 SNMP v2c: ใช้ Community String ในการขอข้อมูล Uptime (OID 1.3.6.1.2.1.1.3.0) เหมาะสำหรับอุปกรณ์เครือข่ายทั่วไป
+                  </p>
+                </div>
+              ) : (
+                /* Version 3 Fields (USM: User-based Security Model) */
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      ระดับความปลอดภัย (Security Level) *
+                    </label>
+                    <select
+                      value={snmpSecurityLevel}
+                      onChange={(e) => setSnmpSecurityLevel(e.target.value as any)}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="authPriv">authPriv (ยืนยันตัวตน + เข้ารหัสข้อมูลด้วย AES) ★ แนะนำสูงสุด</option>
+                      <option value="authNoPriv">authNoPriv (ยืนยันตัวตนด้วยรหัสผ่าน ไม่เข้ารหัสเนื้อหาแพ็กเก็ต)</option>
+                      <option value="noAuthNoPriv">noAuthNoPriv (ระบุชื่อผู้ใช้เท่านั้น ไม่ตรวจสอบรหัสผ่าน)</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Username (ผู้ใช้ SNMPv3) *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="เช่น admin, noc_snmp"
+                        value={snmpUsername}
+                        onChange={(e) => setSnmpUsername(e.target.value)}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        SNMP Port (UDP)
+                      </label>
+                      <input
+                        type="number"
+                        value={port || 161}
+                        onChange={(e) => setPort(Number(e.target.value))}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Auth Configuration */}
+                  {snmpSecurityLevel !== 'noAuthNoPriv' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-sky-100 dark:border-slate-700/60">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center space-x-1">
+                          <Lock className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                          <span>Auth Protocol (โปรโตคอลยืนยันตัวตน)</span>
+                        </label>
+                        <select
+                          value={snmpAuthProtocol}
+                          onChange={(e) => setSnmpAuthProtocol(e.target.value as any)}
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="SHA">SHA-1 (มาตรฐาน)</option>
+                          <option value="MD5">MD5</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center space-x-1">
+                          <Key className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                          <span>Auth Password / Key *</span>
+                        </label>
+                        <input
+                          type="password"
+                          placeholder="รหัสผ่านยืนยันตัวตน (Auth Passphrase)"
+                          value={snmpAuthKey}
+                          onChange={(e) => setSnmpAuthKey(e.target.value)}
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Privacy / Encryption Configuration */}
+                  {snmpSecurityLevel === 'authPriv' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-sky-100 dark:border-slate-700/60">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center space-x-1">
+                          <ShieldCheck className="h-3 w-3 text-sky-600 dark:text-sky-400" />
+                          <span>Privacy Protocol (การเข้ารหัสข้อมูล)</span>
+                        </label>
+                        <select
+                          value={snmpPrivProtocol}
+                          onChange={(e) => setSnmpPrivProtocol(e.target.value as any)}
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="AES">AES-128 (มาตรฐานความปลอดภัยสูง)</option>
+                          <option value="DES">DES (รุ่นเก่า)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center space-x-1">
+                          <Key className="h-3 w-3 text-sky-600 dark:text-sky-400" />
+                          <span>Privacy Password / Key *</span>
+                        </label>
+                        <input
+                          type="password"
+                          placeholder="รหัสผ่านเข้ารหัสข้อมูล (Priv Key)"
+                          value={snmpPrivKey}
+                          onChange={(e) => setSnmpPrivKey(e.target.value)}
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="p-2.5 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-start space-x-2">
+                    <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+                    <span>
+                      <strong>ความปลอดภัยระดับองค์กร (RFC 3414):</strong> SNMP v3 ใช้ User-based Security Model (USM) ข้อมูลและรหัสผ่านจะถูกเข้ารหัสแบบ End-to-End ป้องกันการดักจับข้อมูล (Sniffing) ผ่านสายแลนได้อย่างสมบูรณ์
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

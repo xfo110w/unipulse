@@ -22,6 +22,20 @@ async def lifespan(app: FastAPI):
             await conn.execute(text("ALTER TABLE devices ADD COLUMN is_simulation BOOLEAN DEFAULT 0"))
         except Exception:
             pass
+
+        # Safe migration for SNMP v3 columns if they don't exist yet
+        for col_name, col_sql in [
+            ("snmp_username", "VARCHAR(50)"),
+            ("snmp_security_level", "VARCHAR(20) DEFAULT 'authPriv'"),
+            ("snmp_auth_protocol", "VARCHAR(10) DEFAULT 'SHA'"),
+            ("snmp_auth_key", "VARCHAR(100)"),
+            ("snmp_priv_protocol", "VARCHAR(10) DEFAULT 'AES'"),
+            ("snmp_priv_key", "VARCHAR(100)"),
+        ]:
+            try:
+                await conn.execute(text(f"ALTER TABLE devices ADD COLUMN {col_name} {col_sql}"))
+            except Exception:
+                pass
         
     # Start background scheduler
     start_scheduler()

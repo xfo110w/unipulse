@@ -268,13 +268,25 @@ export const DevicesView: React.FC<DevicesViewProps> = ({
                       <td className="px-4 py-4">
                         <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
                           device.check_type === 'SNMP'
-                            ? 'bg-sky-50 border-sky-200 text-sky-700 dark:bg-sky-500/20 dark:border-sky-500/40 dark:text-sky-300'
-                            : 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300'
+                            ? device.snmp_version === 'v3'
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-800 dark:bg-emerald-500/20 dark:border-emerald-500/40 dark:text-emerald-300'
+                              : 'bg-sky-50 border-sky-200 text-sky-700 dark:bg-sky-500/20 dark:border-sky-500/40 dark:text-sky-300'
+                            : 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-500/20 dark:border-purple-500/40 dark:text-purple-300'
                         }`}>
-                          {device.check_type === 'SNMP' ? 'SNMP v2c' : device.check_type}
+                          {device.check_type === 'SNMP' 
+                            ? (device.snmp_version === 'v3' ? 'SNMP v3 (USM)' : 'SNMP v2c') 
+                            : device.check_type}
                         </span>
-                        {device.check_type === 'SNMP' && device.snmp_community && (
-                          <div className="text-[10px] text-sky-600 dark:text-sky-400 font-mono mt-0.5">comm: {device.snmp_community}</div>
+                        {device.check_type === 'SNMP' && (
+                          device.snmp_version === 'v3' ? (
+                            <div className="text-[10px] text-emerald-700 dark:text-emerald-400 font-mono mt-0.5">
+                              user: {device.snmp_username || 'admin'} • {device.snmp_security_level || 'authPriv'}
+                            </div>
+                          ) : (
+                            device.snmp_community && (
+                              <div className="text-[10px] text-sky-600 dark:text-sky-400 font-mono mt-0.5">comm: {device.snmp_community}</div>
+                            )
+                          )
                         )}
                         <div className="text-[10px] text-slate-400 mt-0.5">ตรวจทุก {device.check_interval}วิ</div>
                       </td>

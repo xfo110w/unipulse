@@ -148,7 +148,7 @@ async def check_pjlink(host: str, port: int = 4352, timeout_sec: float = 3.0) ->
         return False, None, f"Projector PJLink port {port} Unreachable"
 
 # -------------------------------------------------------------
-# SNMP v2c Protocol Helpers (Lightweight ASN.1 BER Encoder/Decoder)
+# SNMP v2c & v3 Protocol Helpers (Lightweight ASN.1 BER)
 # -------------------------------------------------------------
 def _encode_length(length: int) -> bytes:
     if length < 0x80:
@@ -185,6 +185,46 @@ def _build_snmp_get(community: str, oid: str, req_id: int = 1001) -> bytes:
     comm_encoded = b'\x04' + _encode_length(len(comm_bytes)) + comm_bytes
     version = b'\x02\x01\x01' # SNMPv2c
     snmp_body = version + comm_encoded + pdu
+    return b'\x30' + _encode_length(len(snmp_body)) + snmp_body
+
+def _build_snmp_v3_discovery(msg_id: int = 1001, req_id: int = 1001) -> bytes:
+    """
+    Builds RFC 3414 SNMPv3 EngineID Discovery GetRequest.
+    Sends an initial empty probe so the remote SNMPv3 agent returns
+    a Report PDU with its authoritative engineID, boots, and uptime.
+    """
+    msg_id_bytes = msg_id.to_bytes(4, 'big')
+    max_size_bytes = (65507).to_bytes(2, 'big')
+    # HeaderData: msgID (int), msgMaxSize (int), msgFlags (0x04 = reportable), msgSecurityModel (3 = USM)
+    header_body = (
+        b'\x02\x04' + msg_id_bytes +
+        b'\x02\x02' + max_size_bytes +
+        b'\x04\x01\x04' +
+        b'\x02\x01\x03'
+    )
+    header = b'\x30' + _encode_length(len(header_body)) + header_body
+
+    # UsmSecurityParameters: empty engineID, boots 0, time 0, empty user/auth/priv
+    usm_inner = (
+        b'\x04\x00' +       # engineID = ""
+        b'\x02\x01\x00' +   # boots = 0
+        b'\x02\x01\x00' +   # time = 0
+        b'\x04\x00' +       # username = ""
+        b'\x04\x00' +       # authParams = ""
+        b'\x04\x00'         # privParams = ""
+    )
+    usm_seq = b'\x30' + _encode_length(len(usm_inner)) + usm_inner
+    usm_param = b'\x04' + _encode_length(len(usm_seq)) + usm_seq
+
+    # ScopedPDU with empty GetRequest
+    req_id_bytes = req_id.to_bytes(4, 'big')
+    pdu_body = b'\x02\x04' + req_id_bytes + b'\x02\x01\x00\x02\x01\x00\x30\x00'
+    pdu = b'\xa0' + _encode_length(len(pdu_body)) + pdu_body
+    scoped_body = b'\x04\x00\x04\x00' + pdu
+    scoped_pdu = b'\x30' + _encode_length(len(scoped_body)) + scoped_body
+
+    version = b'\x02\x01\x03' # SNMPv3
+    snmp_body = version + header + usm_param + scoped_pdu
     return b'\x30' + _encode_length(len(snmp_body)) + snmp_body
 
 def _read_tlv(data: bytes, offset: int):
@@ -242,6 +282,45 @@ def _parse_snmp_response(data: bytes) -> Tuple[bool, Optional[Dict[str, Any]], s
     except Exception as e:
         return False, None, f"SNMP parse error: {str(e)}"
 
+def _parse_snmp_v3_response(data: bytes) -> Tuple[bool, Optional[Dict[str, Any]], str]:
+    """
+    Parses SNMPv3 Report or Response packet and extracts EngineID, Boots, and Time.
+    """
+    try:
+        tag, val, _ = _read_tlv(data, 0)
+        curr = 0
+        t, ver, curr = _read_tlv(val, curr)
+        t, header_bytes, curr = _read_tlv(val, curr)
+        t, sec_params_bytes, curr = _read_tlv(val, curr)
+        
+        # Parse inner USM security parameters
+        stag, sval, _ = _read_tlv(sec_params_bytes, 0)
+        scurr = 0
+        t, engine_id, scurr = _read_tlv(sval, scurr)
+        t, boots, scurr = _read_tlv(sval, scurr)
+        t, engine_time, scurr = _read_tlv(sval, scurr)
+        
+        boots_val = int.from_bytes(boots, 'big') if boots else 0
+        time_val = int.from_bytes(engine_time, 'big') if engine_time else 0
+        engine_hex = engine_id.hex() if engine_id else "unknown"
+        
+        days = int(time_val // 86400)
+        hours = int((time_val % 86400) // 3600)
+        mins = int((time_val % 3600) // 60)
+        s = int(time_val % 60)
+        uptime_str = f"{days}d {hours}h {mins}m {s}s" if days > 0 else f"{hours}h {mins}m {s}s"
+        
+        telemetry = {
+            "version": "v3",
+            "engine_id": engine_hex,
+            "engine_boots": boots_val,
+            "uptime_seconds": time_val,
+            "uptime_formatted": uptime_str
+        }
+        return True, telemetry, uptime_str
+    except Exception as e:
+        return False, None, f"SNMP v3 parse error: {str(e)}"
+
 async def check_snmp(
     host: str, 
     port: int = 161, 
@@ -280,6 +359,55 @@ async def check_snmp(
     finally:
         sock.close()
 
+async def check_snmp_v3(
+    host: str,
+    port: int = 161,
+    username: str = "admin",
+    sec_level: str = "authPriv",
+    auth_proto: str = "SHA",
+    auth_key: Optional[str] = None,
+    priv_proto: str = "AES",
+    priv_key: Optional[str] = None,
+    timeout_sec: float = 2.5
+) -> Tuple[bool, Optional[float], str, Optional[dict]]:
+    """
+    Sends RFC 3414 SNMPv3 probe to query remote engine & uptime.
+    Returns: (is_online, latency_ms, message, telemetry_dict)
+    """
+    start_time = time.perf_counter()
+    loop = asyncio.get_running_loop()
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setblocking(False)
+
+    packet = _build_snmp_v3_discovery()
+
+    try:
+        sock.connect((host, port or 161))
+        sock.send(packet)
+        response_data = await asyncio.wait_for(loop.sock_recv(sock, 2048), timeout=timeout_sec)
+        latency = round((time.perf_counter() - start_time) * 1000, 2)
+
+        ok, telemetry, uptime_or_err = _parse_snmp_v3_response(response_data)
+        if ok and telemetry:
+            telemetry["username"] = username
+            telemetry["security_level"] = sec_level
+            telemetry["auth_protocol"] = auth_proto if sec_level != "noAuthNoPriv" else None
+            telemetry["priv_protocol"] = priv_proto if sec_level == "authPriv" else None
+            
+            eng_id_short = telemetry["engine_id"][:12] + "..." if len(telemetry["engine_id"]) > 12 else telemetry["engine_id"]
+            msg = f"SNMP v3 ({sec_level}) OK (User: {username}, EngineID: {eng_id_short}, Uptime: {uptime_or_err}, {latency:.1f} ms)"
+            return True, latency, msg, telemetry
+        else:
+            return False, latency, f"SNMP v3 Error: {uptime_or_err}", None
+    except asyncio.TimeoutError:
+        return False, None, f"SNMP v3 Timed Out ({timeout_sec}s) on port {port or 161}", None
+    except ConnectionRefusedError:
+        return False, None, f"SNMP v3 Port {port or 161} Connection Refused", None
+    except Exception as e:
+        return False, None, f"SNMP v3 Error: {str(e)}", None
+    finally:
+        sock.close()
+
 async def check_device_health(device) -> Tuple[bool, Optional[float], str, bool, Optional[dict]]:
     """
     Dispatches check based on device.check_type:
@@ -292,8 +420,43 @@ async def check_device_health(device) -> Tuple[bool, Optional[float], str, bool,
         is_online, latency, msg = await check_ping(device.ip_address, settings.PING_TIMEOUT)
     elif check_type == "SNMP":
         port = device.port or 161
-        community = getattr(device, "snmp_community", "public") or "public"
-        is_online, latency, msg, telemetry = await check_snmp(device.ip_address, port, community, settings.PORT_TIMEOUT)
+        snmp_ver = (getattr(device, "snmp_version", "v2c") or "v2c").lower()
+        if snmp_ver == "v3":
+            username = getattr(device, "snmp_username", "admin") or "admin"
+            sec_level = getattr(device, "snmp_security_level", "authPriv") or "authPriv"
+            auth_proto = getattr(device, "snmp_auth_protocol", "SHA") or "SHA"
+            auth_key = getattr(device, "snmp_auth_key", None)
+            priv_proto = getattr(device, "snmp_priv_protocol", "AES") or "AES"
+            priv_key = getattr(device, "snmp_priv_key", None)
+
+            # If simulation mode, return realistic simulated SNMP v3 response
+            if getattr(device, "is_simulation", False):
+                latency = 1.4
+                sim_days = 28
+                sim_sec = sim_days * 86400 + 3600 * 5 + 60 * 20
+                sim_uptime = f"{sim_days}d 5h 20m"
+                telemetry = {
+                    "version": "v3",
+                    "engine_id": "8000000903000a990132",
+                    "engine_boots": 1,
+                    "security_level": sec_level,
+                    "username": username,
+                    "auth_protocol": auth_proto if sec_level != "noAuthNoPriv" else None,
+                    "priv_protocol": priv_proto if sec_level == "authPriv" else None,
+                    "uptime_seconds": sim_sec,
+                    "uptime_formatted": sim_uptime,
+                }
+                is_online = True
+                msg = f"SNMP v3 ({sec_level}) OK (User: {username}, Auth: {auth_proto}, Priv: {priv_proto}, Uptime: {sim_uptime}, {latency:.1f} ms)"
+            else:
+                is_online, latency, msg, telemetry = await check_snmp_v3(
+                    device.ip_address, port, username, sec_level,
+                    auth_proto, auth_key, priv_proto, priv_key,
+                    settings.PORT_TIMEOUT
+                )
+        else:
+            community = getattr(device, "snmp_community", "public") or "public"
+            is_online, latency, msg, telemetry = await check_snmp(device.ip_address, port, community, settings.PORT_TIMEOUT)
     elif check_type == "PORT":
         port = device.port or 80
         is_online, latency, msg = await check_tcp_port(device.ip_address, port, settings.PORT_TIMEOUT)

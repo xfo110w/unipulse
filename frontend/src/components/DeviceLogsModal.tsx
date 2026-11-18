@@ -161,7 +161,11 @@ export const DeviceLogsModal: React.FC<DeviceLogsModalProps> = ({
             </span>
           </div>
           <div className="text-slate-600 dark:text-slate-400">
-            ตรวจจับแบบ: <strong className="text-purple-700 dark:text-sky-300">{device.check_type}</strong> (ทุก {device.check_interval} วินาที)
+            ตรวจจับแบบ: <strong className="text-purple-700 dark:text-sky-300">
+              {device.check_type === 'SNMP' 
+                ? (device.snmp_version === 'v3' ? 'SNMP v3 (USM)' : 'SNMP v2c') 
+                : device.check_type}
+            </strong> (ทุก {device.check_interval} วินาที)
           </div>
         </div>
 

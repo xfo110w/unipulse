@@ -56,6 +56,12 @@ class DeviceBase(BaseModel):
     check_interval: int = Field(30, ge=5, le=3600)
     snmp_community: Optional[str] = "public"
     snmp_version: Optional[str] = "v2c"
+    snmp_username: Optional[str] = None
+    snmp_security_level: Optional[str] = "authPriv"
+    snmp_auth_protocol: Optional[str] = "SHA"
+    snmp_auth_key: Optional[str] = None
+    snmp_priv_protocol: Optional[str] = "AES"
+    snmp_priv_key: Optional[str] = None
     http_path: Optional[str] = None
     http_expected_code: int = 200
     is_active: bool = True
@@ -80,6 +86,12 @@ class DeviceUpdate(BaseModel):
     check_interval: Optional[int] = None
     snmp_community: Optional[str] = None
     snmp_version: Optional[str] = None
+    snmp_username: Optional[str] = None
+    snmp_security_level: Optional[str] = None
+    snmp_auth_protocol: Optional[str] = None
+    snmp_auth_key: Optional[str] = None
+    snmp_priv_protocol: Optional[str] = None
+    snmp_priv_key: Optional[str] = None
     http_path: Optional[str] = None
     http_expected_code: Optional[int] = None
     is_active: Optional[bool] = None

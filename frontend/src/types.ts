@@ -33,7 +33,13 @@ export interface Device {
   check_type: 'PING' | 'SNMP' | 'PORT' | 'HTTP' | 'PJLINK' | 'AGENT';
   check_interval: number;
   snmp_community?: string;
-  snmp_version?: string;
+  snmp_version?: 'v2c' | 'v3' | string;
+  snmp_username?: string;
+  snmp_security_level?: 'noAuthNoPriv' | 'authNoPriv' | 'authPriv' | string;
+  snmp_auth_protocol?: 'SHA' | 'MD5' | string;
+  snmp_auth_key?: string;
+  snmp_priv_protocol?: 'AES' | 'DES' | string;
+  snmp_priv_key?: string;
   http_path?: string;
   http_expected_code: number;
   status: 'ONLINE' | 'OFFLINE' | 'WARNING' | 'MAINTENANCE' | 'UNKNOWN';

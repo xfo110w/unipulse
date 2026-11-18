@@ -67,6 +67,46 @@ def build_snmp_response(request_data: bytes, uptime_hundredths: int) -> bytes:
     except Exception:
         return b""
 
+def build_snmp_v3_response(request_data: bytes, uptime_sec: int) -> bytes:
+    try:
+        tag, val, _ = read_tlv(request_data, 0)
+        curr = 0
+        t, ver, curr = read_tlv(val, curr)
+        t, header, curr = read_tlv(val, curr)
+        hcurr = 0
+        t, msg_id, hcurr = read_tlv(header, hcurr)
+        
+        # Engine ID (Cisco enterprise: 80 00 00 09 03 00 0a 99 01 32)
+        engine_id = b'\x80\x00\x00\x09\x03\x00\x0a\x99\x01\x32'
+        boots_bytes = (1).to_bytes(4, 'big')
+        time_bytes = int(uptime_sec).to_bytes(4, 'big')
+        
+        # USM response
+        usm_inner = (
+            b'\x04' + encode_length(len(engine_id)) + engine_id +
+            b'\x02\x04' + boots_bytes +
+            b'\x02\x04' + time_bytes +
+            b'\x04\x00\x04\x00\x04\x00'
+        )
+        usm_seq = b'\x30' + encode_length(len(usm_inner)) + usm_inner
+        usm_params = b'\x04' + encode_length(len(usm_seq)) + usm_seq
+        
+        # ScopedPDU with Report PDU (0xa8)
+        pdu_body = b'\x02\x04' + msg_id + b'\x02\x01\x00\x02\x01\x00\x30\x00'
+        pdu = b'\xa8' + encode_length(len(pdu_body)) + pdu_body
+        scoped_body = b'\x04' + encode_length(len(engine_id)) + engine_id + b'\x04\x00' + pdu
+        scoped_pdu = b'\x30' + encode_length(len(scoped_body)) + scoped_body
+        
+        # Header response (msgFlags: 0x00, msgSecurityModel: 3)
+        max_size_bytes = (65507).to_bytes(2, 'big')
+        hdr_body = b'\x02\x04' + msg_id + b'\x02\x02' + max_size_bytes + b'\x04\x01\x00\x02\x01\x03'
+        hdr_seq = b'\x30' + encode_length(len(hdr_body)) + hdr_body
+        
+        body = b'\x02\x01\x03' + hdr_seq + usm_params + scoped_pdu
+        return b'\x30' + encode_length(len(body)) + body
+    except Exception:
+        return b""
+
 def format_uptime(sec: float) -> str:
     days = int(sec // 86400)
     hours = int((sec % 86400) // 3600)
@@ -113,8 +153,8 @@ def main():
     print("  Testing in Web UI:")
     print(f"     1. Category       : Network Switch / Router")
     print(f"     2. IP Address     : {args.host}")
-    print(f"     3. Check Type     : SNMP v2c Check")
-    print(f"     4. Port / Comm    : {args.port} / {args.community}")
+    print(f"     3. Check Type     : SNMP Check (supports both v2c and v3)")
+    print(f"     4. Port / Comm    : {args.port} / {args.community} (v2c) or USM (v3)")
     print("=" * 62)
     print("Listening for SNMP requests... (Press Ctrl + C to stop)")
     print()
@@ -140,11 +180,25 @@ def main():
 
             now_sec = time.time() - boot_timestamp
             uptime_ticks = int(now_sec * 100)
-            response = build_snmp_response(data, uptime_ticks)
+            
+            # Check SNMP version in packet
+            try:
+                _, pval, _ = read_tlv(data, 0)
+                _, pver, _ = read_tlv(pval, 0)
+                if pver == b'\x03':
+                    response = build_snmp_v3_response(data, int(now_sec))
+                    ver_str = "SNMP v3 (USM)"
+                else:
+                    response = build_snmp_response(data, uptime_ticks)
+                    ver_str = "SNMP v2c"
+            except Exception:
+                response = build_snmp_response(data, uptime_ticks)
+                ver_str = "SNMP v2c"
+
             if response:
                 sock.sendto(response, addr)
                 uptime_str = format_uptime(now_sec)
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] Received SNMP GET from {addr[0]}:{addr[1]} -> Response OK (Uptime: {uptime_str})")
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] Received {ver_str} probe from {addr[0]}:{addr[1]} -> Response OK (Uptime: {uptime_str})")
     except (KeyboardInterrupt, SystemExit):
         pass
     finally:

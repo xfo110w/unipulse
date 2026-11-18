@@ -54,7 +54,13 @@ class Device(Base):
     check_interval: Mapped[int] = mapped_column(Integer, default=30) # seconds
     
     snmp_community: Mapped[Optional[str]] = mapped_column(String(50), default="public", nullable=True)
-    snmp_version: Mapped[Optional[str]] = mapped_column(String(10), default="v2c", nullable=True)
+    snmp_version: Mapped[Optional[str]] = mapped_column(String(10), default="v2c", nullable=True) # v2c, v3
+    snmp_username: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    snmp_security_level: Mapped[Optional[str]] = mapped_column(String(20), default="authPriv", nullable=True) # noAuthNoPriv, authNoPriv, authPriv
+    snmp_auth_protocol: Mapped[Optional[str]] = mapped_column(String(10), default="SHA", nullable=True) # SHA, MD5
+    snmp_auth_key: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    snmp_priv_protocol: Mapped[Optional[str]] = mapped_column(String(10), default="AES", nullable=True) # AES, DES
+    snmp_priv_key: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     
     http_path: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     http_expected_code: Mapped[int] = mapped_column(Integer, default=200)

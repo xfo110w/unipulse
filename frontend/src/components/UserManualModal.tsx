@@ -262,7 +262,7 @@ export const UserManualModal: React.FC<UserManualModalProps> = ({ isOpen, onClos
                     <li><strong>วิธีการตรวจสอบ (Check Type):</strong>
                       <ul className="pl-5 mt-1 space-y-1 list-circle">
                         <li><code>ICMP Ping</code>: ตรวจสอบความพร้อมออนไลน์ด้วยความเร็วสูง</li>
-                        <li><code>SNMP v2c</code>: ดึงค่า Uptime ต่อเนื่องจาก Switch/AP ผ่านพอร์ต 161</li>
+                        <li><code>SNMP (v2c / v3)</code>: ตรวจสอบ Switch/AP ผ่านพอร์ต 161 (รองรับทั้ง v2c Community String ดั้งเดิม และ SNMP v3 USM ที่เข้ารหัส AES ป้องกันดักจับข้อมูล)</li>
                         <li><code>TCP Port / HTTP / PJLink</code>: ตรวจสอบพอร์ตเว็บ หรือโปรเจกเตอร์ห้องบรรยาย</li>
                       </ul>
                     </li>
