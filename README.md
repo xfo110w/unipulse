@@ -22,7 +22,9 @@
 - 📊 **กราฟวิเคราะห์ความเสถียรและ Latency ย้อนหลัง (Performance & Latency Graph)**: พล็อตกราฟเส้นและพื้นที่ (SVG Area Chart) แบบเรียลไทม์ พร้อมแถบ Availability Timeline มาร์กจุดที่สัญญาณดับ (Outage Drop) สีแดงให้เห็นทันที
 - ⏱️ **ตรวจสอบประวัติการดับย้อนหลัง (Downtime History & Uptime)**: บันทึกวันและเวลาที่ดับ (Started), เวลาที่กู้คืน (Recovered), รวมระยะเวลาดับ (Downtime Duration) และระยะเวลาเปิดทำงานต่อเนื่อง (Uptime) อย่างแม่นยำตามเวลาไทย (GMT+7)
 - 🏷️ **ระบบจัดการเลขครุภัณฑ์และยี่ห้อ (Hardware Asset Tracking)**: รองรับการบันทึกเลขครุภัณฑ์, ยี่ห้อ (Cisco, Aruba, Ruijie, TP-Link ฯลฯ), รุ่น และส่งออกรายงาน CSV
-- ⚡ **เสถียรบน Windows & Linux พร้อมตัวจำลอง (Cross-Platform Engine & Simulator)**: ระบบ Ping ทำงานผ่าน Background Thread Pool ที่เข้ากันได้กับ Windows ทุกรุ่น ทุกภาษา (ไม่ติดปัญหา Event Loop บน Windows) พร้อมสคริปต์ `mock_devices.py` และ `mock_switch.py` สำหรับทดสอบ
+- 📡 **ระบบตรวจสอบ SNMP แบบคู่ขนาน (Dual SNMP v2c & SNMP v3 USM)**: รองรับทั้ง **SNMP v2c** (Community String สำหรับอุปกรณ์ทั่วไป/รุ่นเก่า) และ **SNMP v3** (User-based Security Model ตามมาตรฐาน RFC 3414) ที่มีระบบยืนยันตัวตน (SHA-1/MD5) และเข้ารหัสข้อมูลแพ็กเก็ตแบบ End-to-End ด้วย **AES-128** ป้องกันการดักจับรหัสผ่าน (Packet Sniffing) บนสาย LAN ได้อย่างสมบูรณ์
+- 📖 **คู่มือการใช้งานระบบในตัว (Built-in User Manual)**: มีปุ่มเปิดคู่มือการใช้งานที่ Footer ด้านล่างสุด แสดงคำแนะนำการใช้งานอย่างละเอียดใน 4 หมวดหลัก (ภาพรวม, ผังอาคาร, อุปกรณ์, เหตุการณ์) ล็อกขนาดหน้าต่างคงที่พร้อมรองรับการเลื่อนอ่านด้วยลูกกลิ้งเมาส์
+- ⚡ **เสถียรบน Windows & Linux พร้อมตัวจำลอง (Cross-Platform Engine & Simulator)**: ระบบ Ping ทำงานผ่าน Background Thread Pool ที่เข้ากันได้กับ Windows ทุกรุ่น ทุกภาษา (ไม่ติดปัญหา Event Loop บน Windows) พร้อมสคริปต์ `mock_devices.py` และ `mock_switch.py` (รองรับทั้ง SNMP v2c และ v3) สำหรับทดสอบ
 - 🛡️ **ระบบความปลอดภัยและการจำกัดวง IP (IP Whitelisting & SSRF Protection)**: ตรวจสอบและอนุญาตเฉพาะ IP ในวงเครือข่ายของมหาวิทยาลัย (เช่น `10.153.0.0/16`) บล็อก Public IP ภายนอกเพื่อป้องกันช่องโหว่ SSRF พร้อมแยกโหมดอุปกรณ์จำลอง (`127.0.0.1`) ไว้อย่างชัดเจน
 - 📲 **แจ้งเตือนทันทีผ่าน Telegram Bot**: แจ้งเตือนเข้ากลุ่มช่างเทคนิคทันทีเมื่ออุปกรณ์ดับ (OFFLINE) และแจ้งเมื่อกู้คืนกลับมา (RECOVERED) แบบ Asynchronous ไม่ทำให้ระบบหน่วง
 
@@ -33,13 +35,13 @@
 ```mermaid
 flowchart TD
     subgraph Campus["มหาวิทยาลัย & อาคาร 1–23 (Campus Infrastructure)"]
-        SW["⚡ สวิตช์เครือข่าย (Core/Distribution Switch)<br>• ICMP Ping • SNMP v2c (Port 161)"]
+        SW["⚡ สวิตช์เครือข่าย (Core/Distribution Switch)<br>• ICMP Ping • SNMP v2c / v3 USM (Port 161)"]
         AP["📶 อุปกรณ์ไวไฟ (Access Point)<br>• ICMP Ping • SNMP / TCP Port"]
         SRV["🖥️ เซิร์ฟเวอร์ & คอมพิวเตอร์แล็บ<br>• Agent Telemetry Push (CPU/RAM/Disk)"]
     end
 
     subgraph CoreSystem["UniPulse Core System"]
-        Engine["Monitoring Engine (Asynchronous Loop)<br>• Thread-Safe Ping (Win/Linux) • SNMP v2c • TCP/HTTP/PJLink<br>• Uptime & Incident Tracker"]
+        Engine["Monitoring Engine (Asynchronous Loop)<br>• Thread-Safe Ping (Win/Linux) • SNMP v2c/v3 (AES/SHA) • TCP/HTTP/PJLink<br>• Uptime & Incident Tracker"]
         DB[("SQLite / PostgreSQL<br>Auto-Seed Buildings 1–23")]
         API["FastAPI REST Backend (Async SQLAlchemy)<br>• /api/v1/devices<br>• /api/v1/locations<br>• /api/v1/incidents<br>• /api/v1/stats"]
         WebUI["React 19 + Tailwind CSS v4 Dashboard<br>• Interactive Campus Map (! Alert Pins)<br>• Performance Latency Graph<br>• Live Matrix & Incident Resolve"]
@@ -97,7 +99,9 @@ flowchart TD
 
 ### 5. รองรับโปรโตคอลตรวจจับหลากหลาย (Multi-Protocol Checks)
 - **ICMP Ping:** ใช้ Thread Pool (`asyncio.to_thread`) รองรับทั้ง Windows (ภาษาไทย/อังกฤษ) และ Linux โดยไม่เกิดปัญหา Event Loop
-- **SNMP Protocol (v2c):** ดึงค่า `sysUpTime` ต่อเนื่องจากสวิตช์และ Access Point ผ่านพอร์ต UDP 161 (หรือพอร์ตที่กำหนด)
+- **SNMP Dual Protocol (v2c & v3 USM):**
+  - **SNMP v2c:** ดึงค่า `sysUpTime` (OID `1.3.6.1.2.1.1.3.0`) ด้วย Community String สำหรับสวิตช์และ AP ทั่วไป
+  - **SNMP v3 (USM - RFC 3414):** มาตรฐานความปลอดภัยระดับองค์กร รองรับการยืนยันตัวตนด้วย Username + Hash (`SHA-1` / `MD5`) และการเข้ารหัสลับแพ็กเก็ตแบบ End-to-End ด้วย `AES-128` ป้องกันการดักฟังข้อมูลและขโมยรหัสผ่านบนสาย LAN (รองรับทั้งระดับ `authPriv`, `authNoPriv`, `noAuthNoPriv`)
 - **TCP Port / HTTP / HTTPS / PJLink:** ตรวจสอบพอร์ตเว็บ (80/443), SSH (22), เว็บพอร์ทัล และโปรเจกเตอร์เครือข่าย (พอร์ต 4352)
 - **Agent Telemetry:** รับค่า CPU / RAM / Disk จากสคริปต์ `agent/lab_pc_agent.py` สำหรับเครื่อง PC ห้องแล็บ
 
@@ -117,12 +121,35 @@ flowchart TD
 - **ป้องกันช่องโหว่ SSRF (Server-Side Request Forgery):** บล็อกการกรอก Public IP ภายนอก (เช่น `8.8.8.8`), Link-Local IP (`169.254.x.x`) และ Multicast เพื่อป้องกันผู้ไม่หวังดีใช้ระบบเป็นฐานสแกนหรือโจมตีเป้าหมายภายนอก
 - **รองรับโหมดจำลองสำหรับทดสอบ (Simulator / Mock Device Mode):** มีช่องตัวเลือก **`[✓] ใช้อุปกรณ์จำลองสำหรับทดสอบ`** ในหน้าต่างเพิ่มอุปกรณ์ เพื่ออนุญาตให้ใช้งาน IP Loopback `127.0.0.1` ร่วมกับ `mock_switch.py` และ `mock_devices.py` ได้อย่างปลอดภัย พร้อมติดป้ายกำกับ **`🧪 จำลอง`** ให้เห็นชัดเจนในหน้ารายการอุปกรณ์และผังอาคาร
 
+### 9. ระบบคู่มือการใช้งานในตัว (Built-in User Manual)
+- มีปุ่ม **"คู่มือการใช้งานระบบ"** ในแถบ Footer ด้านล่างสุดถัดจากเว็บไซต์หลักมหาวิทยาลัย จัดวางสไตล์มินิมอลเรียบเนียน ไร้กรอบรบกวนสายตา
+- รวบรวมคำแนะนำการใช้งานอย่างละเอียดครอบคลุม 4 หมวดหลัก:
+  1. **ภาพรวม (Dashboard):** การอ่านค่าสถานะ SLA สุขภาพระบบ ปริมาณอุปกรณ์ UP/DOWN และระบบ Auto Refresh 15 วินาที
+  2. **ผังอาคาร (Campus Map):** การใช้งานแผนที่แม่บท 23 อาคาร ความหมายของสีอาคาร และการตรวจเช็คอุปกรณ์ประจำอาคาร
+  3. **อุปกรณ์ (Devices):** วิธีการลงทะเบียนอุปกรณ์, การเลือกประเภทตรวจจับ (Ping, SNMP v2c, SNMP v3) และระบบความปลอดภัย IP
+  4. **เหตุการณ์ (Incidents):** วงจรชีวิตของ Incident เมื่ออุปกรณ์ดับ การรับเรื่อง (Acknowledge) และการบันทึกผลกู้คืน
+- ล็อกขนาดหน้าต่างคงที่ ไม่เด้งขยายตามปริมาณข้อความ พร้อมรองรับการเลื่อนอ่านด้วยลูกกลิ้งเมาส์ (Mouse Wheel) ได้อย่างลื่นไหล
+
 ---
 
 ## 📝 บันทึกการปรับปรุงล่าสุด (Changelog)
 
 ### เวอร์ชันอัปเดตล่าสุด (18 พฤศจิกายน 2569)
-- 🛡️ **ยกระดับความปลอดภัยเครือข่ายและการจำกัดวง IP (IP Whitelisting & SSRF Protection)**:
+- 📡 **เพิ่มระบบตรวจสอบ SNMP v3 (USM - RFC 3414) คู่ขนานกับ SNMP v2c:**
+  - ยกระดับความปลอดภัยจากการส่งรหัส Community String แบบ Plaintext ใน v2c เป็นระบบ User-based Security Model (USM) ใน v3
+  - รองรับ 3 Security Levels: `authPriv` (ยืนยันตัวตน + เข้ารหัสข้อมูลแพ็กเก็ตด้วย AES-128 แนะนำสูงสุด), `authNoPriv`, `noAuthNoPriv`
+  - ทำงานผ่านระบบ Asynchronous RFC 3414 Engine Discovery ตรวจสอบ EngineID และดึงค่า Uptime โดยตรง
+  - จัดระเบียบหน้าต่างลงทะเบียนอุปกรณ์ให้มีปุ่มสลับแท็บ v2c / v3 และจัดช่องกรอกแบบ 2 คอลัมน์สมมาตรสวยงาม ไม่ตกบรรทัด
+  - อัปเดตสคริปต์ `mock_switch.py` ให้จำลองการตอบสนองได้ทั้ง SNMP v2c และ SNMP v3
+- 📖 **เพิ่มระบบคู่มือการใช้งาน (User Manual Modal) ที่ Footer ด้านล่างสุด:**
+  - เพิ่มปุ่มลิงก์ "คู่มือการใช้งานระบบ" สไตล์เรียบเนียน ไร้กรอบ ข้าง "เว็บไซต์หลัก bru.ac.th"
+  - รวบรวมวิธีใช้งาน 4 หมวดหมู่สำคัญ (ภาพรวม, ผังอาคาร, อุปกรณ์, เหตุการณ์)
+  - ล็อกความสูงหน้าต่างคงที่ ไม่เด้งขยายตามเนื้อหา พร้อมเปิดให้ใช้ลูกกลิ้งเมาส์เลื่อนอ่านได้ลื่นไหล
+- 🏢 **ตรึงโครงสร้างอาคาร 1–23 ถาวร (Fixed Campus Buildings):**
+  - นำปุ่มลบอาคาร (Trash) และปุ่มเพิ่มอาคารออก เพื่อคงจำนวนอาคารตามผังแม่บทมหาวิทยาลัยจริง 23 อาคาร (รวมหอประชุม BRU DOME)
+- 🐛 **แก้ไข Z-Index ของ Tooltip ในผังแผนที่:**
+  - ปรับปรุง Layer ให้การ์ด Tooltip ลอยอยู่เหนือหมุดตัวเลขอุปกรณ์อย่างถูกต้อง ไม่โดนตัวเลขทับ
+- 🛡️ **ยกระดับความปลอดภัยเครือข่ายและการจำกัดวง IP (IP Whitelisting & SSRF Protection):**
   - เพิ่มระบบตรวจสอบ IP Address ใน `backend/security.py` อนุญาตเฉพาะวงเครือข่ายมหาวิทยาลัย (`10.153.0.0/16` และ Private Subnet)
   - บล็อก Public IP ภายนอก และ IP ต้องห้าม เพื่อป้องกันช่องโหว่ SSRF และการสแกนระบบ
   - เพิ่มช่องเลือก **"🧪 ใช้อุปกรณ์จำลองสำหรับทดสอบ (Simulator / Mock Device)"** ในหน้าต่างลงทะเบียนอุปกรณ์ รองรับการทดสอบด้วย `mock_switch.py` และ `mock_devices.py` บน `127.0.0.1`
@@ -270,7 +297,8 @@ unipulse/
 │   │   │   ├── DeviceLogsModal.tsx  # หน้าต่างดูกราฟ ประวัติ Downtime และ Log สด
 │   │   │   ├── IncidentsView.tsx    # จัดการเหตุการณ์ขัดข้องและบันทึกผลแก้ไข
 │   │   │   ├── Navbar.tsx           # แถบนำทางหลักและตัวแจ้งเตือนสถานะ
-│   │   │   └── SettingsView.tsx     # ตั้งค่าเวลาตรวจสอบและเชื่อมต่อ Telegram Bot
+│   │   │   ├── SettingsView.tsx     # ตั้งค่าเวลาตรวจสอบและเชื่อมต่อ Telegram Bot
+│   │   │   └── UserManualModal.tsx  # หน้าต่างคู่มือการใช้งานระบบ (4 หมวดหมู่หลัก)
 │   │   ├── utils/
 │   │   │   └── date.ts          # จัดรูปแบบวันเวลาไทย (GMT+7) และคำนวณระยะเวลา
 │   │   ├── api.ts               # Frontend API client
@@ -278,7 +306,7 @@ unipulse/
 │   │   └── App.tsx              # Main application layout & polling
 │   └── package.json
 ├── mock_devices.py              # Interactive Switch (161) & WiFi AP (162) CLI simulator
-├── mock_switch.py               # Dedicated SNMP v2c Switch simulator (Port 161)
+├── mock_switch.py               # Dedicated SNMP Switch simulator (supports v2c & v3, Port 161)
 ├── seed_buildings.py            # สคริปต์เพิ่มอาคาร 1–23 เข้าฐานข้อมูลที่มีอยู่
 ├── reset_db.py                  # สคริปต์ล้างฐานข้อมูลและสร้างอาคาร 1–23 เริ่มต้น
 ├── docker-compose.yml           # Production Docker deployment
