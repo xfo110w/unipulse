@@ -170,7 +170,7 @@ export const CampusMap: React.FC<CampusMapProps> = ({
                   top: `${coord.y}%`,
                   transform: 'translate(-50%, -50%)',
                 }}
-                className={isSelected ? 'z-30' : hasOffline ? 'z-20' : 'z-10'}
+                className={isHovered ? 'z-50' : isSelected ? 'z-30' : hasOffline ? 'z-20' : 'z-10'}
               >
                 {/* Clickable Compact Building Marker (Non-overlapping) */}
                 <button
@@ -213,7 +213,7 @@ export const CampusMap: React.FC<CampusMapProps> = ({
 
                 {/* Floating Tooltip Card on Hover */}
                 {isHovered && (
-                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-40 pointer-events-none w-48 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-2.5 shadow-2xl text-left text-xs animate-in fade-in zoom-in-95 duration-150">
+                  <div className={`absolute left-1/2 -translate-x-1/2 ${coord.y < 28 ? 'top-full mt-2' : 'bottom-full mb-2'} z-50 pointer-events-none w-52 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-2.5 shadow-2xl text-left text-xs animate-in fade-in zoom-in-95 duration-150`}>
                     <div className="font-bold text-white flex items-center justify-between border-b border-slate-800 pb-1.5 mb-1.5">
                       <span>{b.name}</span>
                       <span className="text-[10px] text-slate-400 font-mono">#{num}</span>

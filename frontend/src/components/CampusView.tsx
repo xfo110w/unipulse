@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Building2, AlertTriangle, 
-  Tv, Monitor, Server, Wifi, Network, Plus, Trash2, X, Activity,
+  Tv, Monitor, Server, Wifi, Network, X, Activity,
   Zap, TrendingUp, Stethoscope, Edit3, RefreshCw, Map, LayoutGrid
 } from 'lucide-react';
 import { Building, Device } from '../types';
@@ -37,12 +37,6 @@ export const CampusView: React.FC<CampusViewProps> = ({
   const [viewMode, setViewMode] = useState<'map' | 'grid'>('map');
   const [checkingIds, setCheckingIds] = useState<number[]>([]);
 
-  // Modals
-  const [isAddBuildingOpen, setIsAddBuildingOpen] = useState(false);
-  const [bName, setBName] = useState('');
-  const [bCode, setBCode] = useState('');
-  const [bDesc, setBDesc] = useState('');
-
   const selectedBuilding = sortedBuildings.find((b) => b.id === selectedBuildingId) || (sortedBuildings.length > 0 ? sortedBuildings[0] : null);
 
   const getDeviceIcon = (category: string) => {
@@ -61,36 +55,6 @@ export const CampusView: React.FC<CampusViewProps> = ({
       await onCheckDevice(id);
     } finally {
       setCheckingIds((prev) => prev.filter((x) => x !== id));
-    }
-  };
-
-  const handleCreateBuilding = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!bName.trim() || !bCode.trim()) return;
-    try {
-      const created = await api.createBuilding({
-        name: bName.trim(),
-        code: bCode.trim().toUpperCase(),
-        description: bDesc.trim() || undefined,
-      });
-      setIsAddBuildingOpen(false);
-      setBName('');
-      setBCode('');
-      setBDesc('');
-      setSelectedBuildingId(created.id);
-      if (onRefresh) onRefresh();
-    } catch (err: any) {
-      alert(`ไม่สามารถเพิ่มอาคารได้: ${err.message}`);
-    }
-  };
-
-  const handleDeleteBuilding = async (bId: number) => {
-    if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบอาคารนี้? (อุปกรณ์ในอาคารจะถูกยกเลิกการผูกด้วย)')) return;
-    try {
-      await api.deleteBuilding(bId);
-      if (onRefresh) onRefresh();
-    } catch (err: any) {
-      alert(`ลบไม่สำเร็จ: ${err.message}`);
     }
   };
 
@@ -275,31 +239,16 @@ export const CampusView: React.FC<CampusViewProps> = ({
               <span>รายชื่ออาคาร 1-23</span>
             </button>
           </div>
-
-          <button
-            onClick={() => setIsAddBuildingOpen(true)}
-            className="flex items-center space-x-2 bg-gradient-to-r from-purple-700 to-purple-600 hover:from-purple-600 text-amber-200 border border-amber-400/40 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-medium transition shadow-lg shadow-purple-950/40 cursor-pointer"
-          >
-            <Plus className="h-4 w-4 text-amber-300" />
-            <span>เพิ่มอาคารใหม่</span>
-          </button>
         </div>
       </div>
 
       {buildings.length === 0 ? (
         <div className="bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800 rounded-2xl p-12 text-center">
           <Building2 className="h-12 w-12 text-slate-500 mx-auto mb-3" />
-          <h3 className="text-base font-bold text-white">ยังไม่มีข้อมูลอาคารในระบบ</h3>
+          <h3 className="text-base font-bold text-slate-900 dark:text-white">กำลังโหลดข้อมูลผังอาคาร 1–23...</h3>
           <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-            เริ่มต้นใช้งานโดยการเพิ่มอาคาร เพื่อจัดกลุ่มอุปกรณ์ Switch และ WiFi ของคุณ
+            หากข้อมูลไม่แสดง กรุณารีเฟรชหน้าจอ หรือตรวจสอบการเชื่อมต่อกับเซิร์ฟเวอร์
           </p>
-          <button
-            onClick={() => setIsAddBuildingOpen(true)}
-            className="mt-4 inline-flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>กดที่นี่เพื่อเพิ่มอาคารแรก</span>
-          </button>
         </div>
       ) : (
         <>
@@ -390,16 +339,6 @@ export const CampusView: React.FC<CampusViewProps> = ({
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                       {selectedBuilding.description || 'ภาพรวมระบบสัญญาณเครือข่ายและอุปกรณ์ประจำอาคาร'}
                     </p>
-                  </div>
-
-                  <div className="flex items-center space-x-2.5">
-                    <button
-                      onClick={() => handleDeleteBuilding(selectedBuilding.id)}
-                      title="ลบอาคารนี้"
-                      className="p-2 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 dark:bg-slate-800 dark:hover:bg-rose-600/30 dark:text-slate-400 dark:hover:text-rose-300 dark:border-slate-700 transition cursor-pointer"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
                   </div>
                 </div>
 
@@ -548,79 +487,6 @@ export const CampusView: React.FC<CampusViewProps> = ({
             </div>
           )}
         </>
-      )}
-
-      {/* Modal: Add Building */}
-      {isAddBuildingOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 shadow-2xl dark:bg-slate-900 dark:border-slate-700">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
-                <Building2 className="h-5 w-5 text-purple-700 dark:text-indigo-400" />
-                <span>เพิ่มอาคารใหม่ (New Building)</span>
-              </h3>
-              <button
-                onClick={() => setIsAddBuildingOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white transition cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateBuilding} className="space-y-3 mt-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">ชื่ออาคาร *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="เช่น อาคาร 24"
-                  value={bName}
-                  onChange={(e) => setBName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-white focus:outline-none focus:border-purple-600 dark:focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">รหัสอาคาร (Code) *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="เช่น 24"
-                  value={bCode}
-                  onChange={(e) => setBCode(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 font-mono uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white focus:outline-none focus:border-purple-600 dark:focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">รายละเอียด (ตัวเลือกเสริม)</label>
-                <input
-                  type="text"
-                  placeholder="เช่น อาคารเรียน"
-                  value={bDesc}
-                  onChange={(e) => setBDesc(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-white focus:outline-none focus:border-purple-600 dark:focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsAddBuildingOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-white dark:border-slate-700 transition cursor-pointer"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-semibold shadow transition cursor-pointer"
-                >
-                  บันทึกอาคาร
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
     </div>
   );
