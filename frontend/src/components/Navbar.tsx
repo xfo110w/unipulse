@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Server, AlertTriangle, Building2, Sliders, RefreshCw, ExternalLink, Sun, Moon } from 'lucide-react';
+import { Activity, Server, AlertTriangle, Building2, Sliders, RefreshCw, ExternalLink, Sun, Moon, LogIn } from 'lucide-react';
 import { DashboardStats } from '../types';
 
 interface NavbarProps {
@@ -12,6 +12,7 @@ interface NavbarProps {
   isRefreshing: boolean;
   isDarkMode?: boolean;
   onToggleTheme?: () => void;
+  onOpenLogin?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -22,6 +23,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setAutoRefresh,
   onManualRefresh,
   isRefreshing,
+  onOpenLogin,
 }) => {
   const navItems = [
     { id: 'dashboard', label: 'ภาพรวม', en: 'Dashboard', icon: Activity },
@@ -127,6 +129,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>bru.ac.th</span>
               <ExternalLink className="h-3 w-3" />
             </a>
+
+            {/* Login Button */}
+            <button
+              onClick={onOpenLogin}
+              className="flex items-center space-x-1.5 bg-purple-700 hover:bg-purple-800 text-white dark:bg-purple-800/90 dark:hover:bg-purple-700 dark:text-amber-200 border border-purple-600 dark:border-purple-600/60 px-2.5 py-1 rounded-lg text-xs font-semibold transition shadow-xs cursor-pointer"
+              title="เข้าสู่ระบบผู้ดูแลระบบ (Admin Login)"
+            >
+              <LogIn className="h-3.5 w-3.5 text-amber-300 dark:text-amber-400" />
+              <span>เข้าสู่ระบบ</span>
+            </button>
           </div>
         </div>
       </div>

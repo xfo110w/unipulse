@@ -9,6 +9,7 @@ import { SettingsView } from './components/SettingsView';
 import { DeviceModal } from './components/DeviceModal';
 import { DeviceLogsModal } from './components/DeviceLogsModal';
 import { UserManualModal } from './components/UserManualModal';
+import { LoginModal } from './components/LoginModal';
 import { DashboardStats, Device, Building, Incident } from './types';
 import { api } from './api';
 
@@ -29,6 +30,7 @@ export function App() {
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
   const [viewingLogsDevice, setViewingLogsDevice] = useState<Device | null>(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   // Theme state: defaults to 'light' (white background as requested), persists in localStorage
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -156,6 +158,7 @@ export function App() {
         isRefreshing={isRefreshing}
         isDarkMode={isDarkMode}
         onToggleTheme={toggleTheme}
+        onOpenLogin={() => setIsLoginModalOpen(true)}
       />
 
       {/* Backend connection alert if error */}
@@ -257,6 +260,11 @@ export function App() {
       <UserManualModal
         isOpen={isManualModalOpen}
         onClose={() => setIsManualModalOpen(false)}
+      />
+
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
       />
 
       {/* Floating Small Dark/Light Mode Toggle Button */}
