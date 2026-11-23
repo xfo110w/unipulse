@@ -18,6 +18,45 @@ interface GoogleCampusMapProps {
 
 const LOCAL_STORAGE_KEY = 'bru_google_building_pins_geo_v1';
 
+// BRU Campus Perimeter Boundary (Calibrated accurately to user's yellow line around BRU Campus)
+export const BRU_CAMPUS_POLYGON_GEO: Array<{ lat: number; lng: number }> = [
+  // ทิศเหนือ: แนวถนนจิระ (จากประตู 4 ฝั่งตะวันตก มุ่งหน้าไปทิศตะวันออก)
+  { lat: 14.99130, lng: 103.09564 }, // มุมตะวันตกเฉียงเหนือ ประตู 4
+  { lat: 14.99155, lng: 103.09660 }, // แนวถนนจิระ
+  { lat: 14.99173, lng: 103.09740 }, // ถนนจิระ ประตู 3
+  { lat: 14.99188, lng: 103.09804 }, // ถนนจิระ ประตู 1 (หน้า มรภ.)
+  { lat: 14.99217, lng: 103.09912 }, // ถนนจิระ ช่วงกลาง
+  { lat: 14.99244, lng: 103.10032 }, // ถนนจิระ ฝั่งตะวันออก
+  { lat: 14.99287, lng: 103.10195 }, // ถนนจิระ หัวมุมตะวันออกเฉียงเหนือ
+  { lat: 14.99290, lng: 103.10229 }, // จุดตัดถนนจิระและถนนเลี่ยงเมือง
+
+  // ทิศตะวันออก: เลียบถนนเลี่ยงเมือง (จากแยกถนนจิระ ผ่านประตู 6 ลงมาทางทิศใต้)
+  { lat: 14.99244, lng: 103.10259 }, // ทางเลี้ยวเข้าถนนเลี่ยงเมือง
+  { lat: 14.99173, lng: 103.10300 }, // ประตู 6 ถนนเลี่ยงเมือง
+  { lat: 14.99051, lng: 103.10360 }, // เลียบด้านหลังหอประชุม BRU DOME
+  { lat: 14.98920, lng: 103.10409 }, // ด้านข้างอาคาร 15
+  { lat: 14.98831, lng: 103.10429 }, // แนวรั้วทิศตะวันออก
+  { lat: 14.98722, lng: 103.10435 }, // มุมตะวันออกเฉียงใต้ ใกล้วงเวียน ร.1
+
+  // ทิศใต้: เลียบทางหลวง 218 / ถนนเลี่ยงเมือง (จากวงเวียน ร.1 ไปทางทิศตะวันตก)
+  { lat: 14.98697, lng: 103.10354 }, // ทางโค้งเข้าถนน 218
+  { lat: 14.98659, lng: 103.10281 }, // ใต้สระน้ำประปา มรภ.
+  { lat: 14.98624, lng: 103.10141 }, // ใต้แนวสระน้ำประปา
+  { lat: 14.98599, lng: 103.10040 }, // ด้านหน้าฝั่งตรงข้าม Suki Desu Bakery
+  { lat: 14.98558, lng: 103.09914 }, // ด้านหน้าแนวรั้วทิศใต้
+  { lat: 14.98531, lng: 103.09753 }, // แนวรั้วทิศใต้
+  { lat: 14.98529, lng: 103.09712 }, // มุมตะวันตกเฉียงใต้สุด
+
+  // ทิศตะวันตก: เลียบแนวกำแพงรั้วหลังหอพักและสนามกีฬากลับขึ้นไปทิศเหนือ (ไม่ล้ำไป ร.พ.ช.)
+  { lat: 14.98579, lng: 103.09691 }, // แนวกำแพงตะวันตกช่วงล่าง
+  { lat: 14.98666, lng: 103.09675 }, // แนวกำแพงหลังหอพัก
+  { lat: 14.98730, lng: 103.09656 }, // แนวกำแพงตะวันตก
+  { lat: 14.98792, lng: 103.09643 }, // แนวกำแพงหลังอัฒจันทร์สนามกีฬา
+  { lat: 14.98902, lng: 103.09613 }, // แนวกำแพงหลังอัฒจันทร์สนามกีฬา
+  { lat: 14.98964, lng: 103.09594 }, // แนวรั้วสนามกีฬาด้านทิศเหนือ
+  { lat: 14.99039, lng: 103.09579 }, // แนวรั้วเชื่อมกลับสู่ประตู 4
+];
+
 // Web Mercator projection formulas (EPSG:3857) - used by Google Maps & Leaflet
 function latLngToWorldPixel(lat: number, lng: number, zoom: number): { x: number; y: number } {
   const scale = 256 * Math.pow(2, zoom);
@@ -36,6 +75,19 @@ function worldPixelToLatLng(x: number, y: number, zoom: number): { lat: number; 
   return { lat, lng };
 }
 
+// Ray-Casting algorithm to verify if (lat, lng) falls within BRU Campus Perimeter (from user's calibrated boundary)
+export function isPointInCampus(lat: number, lng: number): boolean {
+  let inside = false;
+  for (let i = 0, j = BRU_CAMPUS_POLYGON_GEO.length - 1; i < BRU_CAMPUS_POLYGON_GEO.length; j = i++) {
+    const xi = BRU_CAMPUS_POLYGON_GEO[i].lng, yi = BRU_CAMPUS_POLYGON_GEO[i].lat;
+    const xj = BRU_CAMPUS_POLYGON_GEO[j].lng, yj = BRU_CAMPUS_POLYGON_GEO[j].lat;
+    const intersect = ((yi > lat) !== (yj > lat)) &&
+      (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
 export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
   buildings,
   devices,
@@ -48,8 +100,8 @@ export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
   // Zoom level: default 17 covers BRU campus nicely (range 15 to 19)
   const [zoomLevel, setZoomLevel] = useState<number>(17);
 
-  // BRU coordinates center: 14.9908457, 103.1024334
-  const defaultCenter = { lat: 14.9908457, lng: 103.1024334 };
+  // BRU coordinates center: 14.98910, 103.10000 (centered on campus)
+  const defaultCenter = { lat: 14.98910, lng: 103.10000 };
   const [center, setCenter] = useState<{ lat: number; lng: number }>(defaultCenter);
 
   // Dimensions of map container
@@ -66,6 +118,19 @@ export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
   const [searchBuildingQuery, setSearchBuildingQuery] = useState<string>('');
   const [isSelectorOpen, setIsSelectorOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = useCallback((msg: string, duration = 3500) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    setToastMessage(msg);
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMessage(null);
+      toastTimeoutRef.current = null;
+    }, duration);
+  }, []);
+
   const [activePopupBuildingId, setActivePopupBuildingId] = useState<number | null>(null);
 
   // Interactive Panning State
@@ -129,8 +194,13 @@ export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
       .catch(() => {});
   }, []);
 
-  // Save pin helper
+  // Save pin helper (Constraint: Only allow pinning inside BRU campus!)
   const handleSavePin = useCallback((bId: number, lat: number, lng: number) => {
+    if (!isPointInCampus(lat, lng)) {
+      showToast('⚠️ ไม่สามารถปักนอกเขตได้ — กรุณาปักหมุดภายในเขต มรภ.บุรีรัมย์ เท่านั้น', 4000);
+      return false;
+    }
+
     const updated = { ...pins, [bId]: { lat, lng } };
     setPins(updated);
     try {
@@ -140,12 +210,12 @@ export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
     }
 
     const b = buildings.find(x => x.id === bId);
-    setToastMessage(`ปักตำแหน่ง ${b ? b.name : `อาคาร ${bId}`} สำเร็จ`);
-    setTimeout(() => setToastMessage(null), 2500);
+    showToast(`ปักตำแหน่ง ${b ? b.name : `อาคาร ${bId}`} สำเร็จ`, 2500);
 
     // Save to API in background
     api.saveBuildingPin({ building_id: bId, lat, lng }).catch(() => {});
-  }, [pins, buildings]);
+    return true;
+  }, [pins, buildings, showToast]);
 
   const handleDeletePin = (bId: number) => {
     const updated = { ...pins };
@@ -158,8 +228,7 @@ export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
     }
 
     const b = buildings.find(x => x.id === bId);
-    setToastMessage(`ลบหมุด ${b ? b.name : `อาคาร ${bId}`} เรียบร้อย`);
-    setTimeout(() => setToastMessage(null), 2500);
+    showToast(`ลบหมุด ${b ? b.name : `อาคาร ${bId}`} เรียบร้อย`, 2500);
 
     api.deleteBuildingPin(bId).catch(() => {});
     if (activePopupBuildingId === bId) setActivePopupBuildingId(null);
@@ -173,8 +242,7 @@ export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
       } catch {
         // ignore
       }
-      setToastMessage('ล้างหมุดทั้งหมดเรียบร้อยแล้ว');
-      setTimeout(() => setToastMessage(null), 2500);
+      showToast('ล้างหมุดทั้งหมดเรียบร้อยแล้ว', 2500);
       setActivePopupBuildingId(null);
     }
   };
@@ -227,7 +295,7 @@ export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
     const dx = e.clientX - dragStartRef.current.clientX;
     const dy = e.clientY - dragStartRef.current.clientY;
 
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
       hasMovedRef.current = true;
     }
 
@@ -235,9 +303,14 @@ export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
     const newWorldY = dragStartRef.current.startWorldY - dy;
     const newCenter = worldPixelToLatLng(newWorldX, newWorldY, zoomLevel);
 
-    // Limit pan to Buriram Rajabhat area (Latitude 14.97 to 15.01, Longitude 103.08 to 103.12)
-    const clampedLat = Math.max(14.975, Math.min(15.008, newCenter.lat));
-    const clampedLng = Math.max(103.085, Math.min(103.120, newCenter.lng));
+    // Limit pan bounds to comfortable viewing around BRU campus perimeter
+    const minPanLat = 14.9820;
+    const maxPanLat = 14.9950;
+    const minPanLng = 103.0920;
+    const maxPanLng = 103.1075;
+
+    const clampedLat = Math.max(minPanLat, Math.min(maxPanLat, newCenter.lat));
+    const clampedLng = Math.max(minPanLng, Math.min(maxPanLng, newCenter.lng));
 
     setCenter({ lat: clampedLat, lng: clampedLng });
   };
@@ -245,36 +318,47 @@ export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
   const handleMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
     setIsDraggingMap(false);
 
-    // If mouse didn't drag and Pin Mode is active: Place a pin!
-    if (!hasMovedRef.current && isPinningMode && !draggingPinBuildingId) {
-      if (!mapViewportRef.current) return;
-      const rect = mapViewportRef.current.getBoundingClientRect();
-      const clickScreenX = e.clientX - rect.left;
-      const clickScreenY = e.clientY - rect.top;
+    if (dragStartRef.current) {
+      const dx = Math.abs(e.clientX - dragStartRef.current.clientX);
+      const dy = Math.abs(e.clientY - dragStartRef.current.clientY);
+      const isClick = !hasMovedRef.current || (dx < 7 && dy < 7);
 
-      const clickWorldX = centerWorld.x - containerSize.width / 2 + clickScreenX;
-      const clickWorldY = centerWorld.y - containerSize.height / 2 + clickScreenY;
-      const geo = worldPixelToLatLng(clickWorldX, clickWorldY, zoomLevel);
+      // If mouse clicked (didn't drag) and Pin Mode is active: Place a pin!
+      if (isClick && isPinningMode && !draggingPinBuildingId) {
+        if (mapViewportRef.current) {
+          const rect = mapViewportRef.current.getBoundingClientRect();
+          const clickScreenX = e.clientX - rect.left;
+          const clickScreenY = e.clientY - rect.top;
 
-      handleSavePin(targetBuildingId, geo.lat, geo.lng);
+          // Compute exact world coordinates using actual rect dimensions
+          const clickWorldX = centerWorld.x - rect.width / 2 + clickScreenX;
+          const clickWorldY = centerWorld.y - rect.height / 2 + clickScreenY;
+          const geo = worldPixelToLatLng(clickWorldX, clickWorldY, zoomLevel);
+
+          handleSavePin(targetBuildingId, geo.lat, geo.lng);
+        }
+      }
     }
 
     dragStartRef.current = null;
   };
 
+  const minZoom = 15;
+  const maxZoom = 20;
+
   // Mouse Wheel Zoom
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (e.deltaY < 0) {
-      setZoomLevel(prev => Math.min(prev + 1, 19));
+      setZoomLevel(prev => Math.min(prev + 1, maxZoom));
     } else if (e.deltaY > 0) {
-      setZoomLevel(prev => Math.max(prev - 1, 15));
+      setZoomLevel(prev => Math.max(prev - 1, minZoom));
     }
   };
 
   // Zoom button handlers
-  const handleZoomIn = () => setZoomLevel(prev => Math.min(prev + 1, 19));
-  const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 1, 15));
+  const handleZoomIn = () => setZoomLevel(prev => Math.min(prev + 1, maxZoom));
+  const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 1, minZoom));
   const handleResetZoom = () => {
     setCenter(defaultCenter);
     setZoomLevel(17);
@@ -339,7 +423,7 @@ export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
             </h3>
             <p className="text-[11px] text-slate-500 dark:text-purple-200/70 truncate">
               {isPinningMode 
-                ? 'คลิกค้างแล้วลากเพื่อเลื่อนหาตำแหน่งตึก • คลิกบนหลังคาตึกเพื่อปักเลขอาคาร'
+                ? 'คลิกค้างแล้วลากเพื่อเลื่อนหาตำแหน่งตึก • คลิกบนหลังคาตึกเพื่อปักเลขอาคาร (เฉพาะในเขต มรภ.)'
                 : 'แผนที่ดาวเทียมเลื่อนและซูมได้อิสระ • คลิกที่ตัวเลขอาคารเพื่อตรวจดูอุปกรณ์'}
             </p>
           </div>
@@ -573,11 +657,21 @@ export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
         </div>
       )}
 
-      {/* Notification Toast */}
+      {/* Notification Toast - Fixed at Top of Screen (Always Visible across all Zoom & Scroll positions) */}
       {toastMessage && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 border border-amber-400/80 text-amber-300 px-4 py-1.5 rounded-full text-xs font-semibold shadow-2xl flex items-center space-x-2 animate-bounce">
-          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-          <span>{toastMessage}</span>
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[9999] pointer-events-none select-none">
+          <div className={`px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold shadow-2xl flex items-center space-x-2.5 animate-bounce border backdrop-blur-md ${
+            toastMessage.includes('⚠️')
+              ? 'bg-rose-950/95 border-rose-500 text-rose-200 ring-4 ring-rose-500/40 shadow-rose-950/60'
+              : 'bg-slate-900/95 border-amber-400 text-amber-300 ring-4 ring-amber-400/20 shadow-purple-950/60'
+          }`}>
+            {toastMessage.includes('⚠️') ? (
+              <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0 animate-pulse" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+            )}
+            <span>{toastMessage}</span>
+          </div>
         </div>
       )}
 
