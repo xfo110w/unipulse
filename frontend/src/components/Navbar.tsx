@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Server, AlertTriangle, Building2, Sliders, RefreshCw, ExternalLink, Sun, Moon, LogIn } from 'lucide-react';
+import { Activity, Server, AlertTriangle, Building2, Sliders, RefreshCw, ExternalLink, Sun, Moon, LogOut } from 'lucide-react';
 import { DashboardStats } from '../types';
 
 interface NavbarProps {
@@ -12,7 +12,8 @@ interface NavbarProps {
   isRefreshing: boolean;
   isDarkMode?: boolean;
   onToggleTheme?: () => void;
-  onOpenLogin?: () => void;
+  onLogout?: () => void;
+  currentUser?: string;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -23,7 +24,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   setAutoRefresh,
   onManualRefresh,
   isRefreshing,
-  onOpenLogin,
+  onLogout,
+  currentUser,
 }) => {
   const navItems = [
     { id: 'dashboard', label: 'ภาพรวม', en: 'Dashboard', icon: Activity },
@@ -130,14 +132,22 @@ export const Navbar: React.FC<NavbarProps> = ({
               <ExternalLink className="h-3 w-3" />
             </a>
 
-            {/* Login Button */}
+            {/* Logged-in User Badge */}
+            {currentUser && (
+              <span className="hidden md:inline-flex items-center space-x-1 text-xs text-purple-950 dark:text-amber-200 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/60 px-2 py-1 rounded-lg font-mono">
+                <span className="text-[11px]">👤</span>
+                <span className="font-semibold">{currentUser}</span>
+              </span>
+            )}
+
+            {/* Logout Button */}
             <button
-              onClick={onOpenLogin}
-              className="flex items-center space-x-1.5 bg-purple-700 hover:bg-purple-800 text-white dark:bg-purple-800/90 dark:hover:bg-purple-700 dark:text-amber-200 border border-purple-600 dark:border-purple-600/60 px-2.5 py-1 rounded-lg text-xs font-semibold transition shadow-xs cursor-pointer"
-              title="เข้าสู่ระบบผู้ดูแลระบบ (Admin Login)"
+              onClick={onLogout}
+              className="flex items-center space-x-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-300 dark:border-rose-800/60 px-2.5 py-1 rounded-lg text-xs font-semibold transition shadow-xs cursor-pointer"
+              title="ออกจากระบบ (Sign Out)"
             >
-              <LogIn className="h-3.5 w-3.5 text-amber-300 dark:text-amber-400" />
-              <span>เข้าสู่ระบบ</span>
+              <LogOut className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+              <span>ออกจากระบบ</span>
             </button>
           </div>
         </div>

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { 
   AlertTriangle, CheckCircle2, ZoomIn, ZoomOut, RotateCcw, 
-  MapPin, Eye, Info, Sparkles
+  MapPin, Eye, Info, Sparkles, Globe, LayoutGrid
 } from 'lucide-react';
 import { Building, Device } from '../types';
 
@@ -10,6 +10,8 @@ interface CampusMapProps {
   devices: Device[];
   selectedBuildingId: number | null;
   onSelectBuilding: (buildingId: number) => void;
+  onSwitchToGoogleMap?: () => void;
+  onSwitchToGrid?: () => void;
 }
 
 // Coordinates (Percentage X%, Y% calibrated precisely to map image Width:651, Height:629)
@@ -45,6 +47,8 @@ export const CampusMap: React.FC<CampusMapProps> = ({
   devices,
   selectedBuildingId,
   onSelectBuilding,
+  onSwitchToGoogleMap,
+  onSwitchToGrid,
 }) => {
   const [zoom, setZoom] = useState(1);
   const [hoveredBuildingId, setHoveredBuildingId] = useState<number | null>(null);
@@ -102,33 +106,28 @@ export const CampusMap: React.FC<CampusMapProps> = ({
             </div>
           </div>
 
-          {/* Zoom Buttons */}
-          <div className="flex items-center bg-white border border-slate-200 text-slate-700 shadow-xs dark:bg-[#1a1233] dark:border-purple-900/60 dark:text-purple-200 rounded-xl p-0.5">
+          {/* Quick Building Selector: Grid Button (Replacing Zoom Buttons on toolbar - Red Circle) */}
+          {onSwitchToGrid && (
             <button
-              onClick={handleZoomIn}
-              className="p-1.5 text-slate-600 hover:text-purple-900 hover:bg-slate-100 dark:text-purple-200 dark:hover:text-amber-300 dark:hover:bg-purple-900/50 rounded-lg transition cursor-pointer"
-              title="ซูมเข้า (+)"
+              onClick={onSwitchToGrid}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 shadow-xs dark:bg-[#1a1233] dark:hover:bg-purple-900/60 dark:text-purple-200 dark:border-purple-900/60 transition cursor-pointer"
+              title="ดูตารางรายชื่ออาคาร 1 ถึง 23"
             >
-              <ZoomIn className="h-3.5 w-3.5" />
+              <LayoutGrid className="h-3.5 w-3.5 text-purple-600 dark:text-amber-400" />
+              <span>รายชื่ออาคาร 1-23</span>
             </button>
-            <span className="text-[11px] font-mono text-slate-600 dark:text-purple-300/80 px-1">
-              {Math.round(zoom * 100)}%
-            </span>
+          )}
+
+          {onSwitchToGoogleMap && (
             <button
-              onClick={handleZoomOut}
-              className="p-1.5 text-slate-600 hover:text-purple-900 hover:bg-slate-100 dark:text-purple-200 dark:hover:text-amber-300 dark:hover:bg-purple-900/50 rounded-lg transition cursor-pointer"
-              title="ซูมออก (-)"
+              onClick={onSwitchToGoogleMap}
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 dark:text-emerald-300 dark:border-emerald-500/30 transition cursor-pointer"
+              title="สลับไปดูแผนที่ Google Maps สภาพแวดล้อมจริง"
             >
-              <ZoomOut className="h-3.5 w-3.5" />
+              <Globe className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="hidden sm:inline">ดู Google Maps</span>
             </button>
-            <button
-              onClick={handleResetZoom}
-              className="p-1.5 text-slate-400 hover:text-purple-900 hover:bg-slate-100 dark:text-purple-400 dark:hover:text-amber-300 dark:hover:bg-purple-900/50 rounded-lg transition cursor-pointer ml-0.5 border-l border-slate-200 dark:border-purple-900/60"
-              title="รีเซ็ตขนาด (100%)"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          )}
         </div>
       </div>
 
@@ -137,6 +136,33 @@ export const CampusMap: React.FC<CampusMapProps> = ({
         ref={mapContainerRef}
         className="relative w-full overflow-auto bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-3 select-none min-h-[420px] max-h-[640px] transition-colors duration-200"
       >
+        {/* Floating Zoom Controls at Top-Left (Yellow Circle) */}
+        <div className="absolute top-3 left-3 z-20 flex items-center bg-white/95 dark:bg-[#160e2b]/95 backdrop-blur-md border border-slate-200 dark:border-purple-900/70 text-slate-700 dark:text-purple-200 rounded-xl p-0.5 shadow-lg">
+          <button
+            onClick={handleZoomIn}
+            className="p-1.5 text-slate-600 hover:text-purple-900 hover:bg-slate-100 dark:text-purple-200 dark:hover:text-amber-300 dark:hover:bg-purple-900/50 rounded-lg transition cursor-pointer"
+            title="ซูมเข้า (+)"
+          >
+            <ZoomIn className="h-3.5 w-3.5" />
+          </button>
+          <span className="text-[11px] font-mono font-semibold text-slate-600 dark:text-purple-300/80 px-1.5">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            onClick={handleZoomOut}
+            className="p-1.5 text-slate-600 hover:text-purple-900 hover:bg-slate-100 dark:text-purple-200 dark:hover:text-amber-300 dark:hover:bg-purple-900/50 rounded-lg transition cursor-pointer"
+            title="ซูมออก (-)"
+          >
+            <ZoomOut className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={handleResetZoom}
+            className="p-1.5 text-slate-400 hover:text-purple-900 hover:bg-slate-100 dark:text-purple-400 dark:hover:text-amber-300 dark:hover:bg-purple-900/50 rounded-lg transition cursor-pointer ml-0.5 border-l border-slate-200 dark:border-purple-900/60"
+            title="รีเซ็ตขนาด (100%)"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </button>
+        </div>
         <div 
           className="relative transition-transform duration-200 ease-out origin-center inline-block max-w-full"
           style={{ transform: `scale(${zoom})` }}

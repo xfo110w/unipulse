@@ -9,11 +9,19 @@ import { SettingsView } from './components/SettingsView';
 import { DeviceModal } from './components/DeviceModal';
 import { DeviceLogsModal } from './components/DeviceLogsModal';
 import { UserManualModal } from './components/UserManualModal';
-import { LoginModal } from './components/LoginModal';
+import { LoginView } from './components/LoginView';
 import { DashboardStats, Device, Building, Incident } from './types';
 import { api } from './api';
 
 export function App() {
+  // Authentication state (Prototype Mock Login)
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    return sessionStorage.getItem('unipulse_auth') === 'true' || localStorage.getItem('unipulse_auth') === 'true';
+  });
+  const [currentUser, setCurrentUser] = useState<string>(() => {
+    return sessionStorage.getItem('unipulse_user') || localStorage.getItem('unipulse_user') || 'admin';
+  });
+
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
@@ -30,7 +38,6 @@ export function App() {
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
   const [viewingLogsDevice, setViewingLogsDevice] = useState<Device | null>(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   // Theme state: defaults to 'light' (white background as requested), persists in localStorage
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -50,6 +57,27 @@ export function App() {
   }, [isDarkMode]);
 
   const toggleTheme = () => setIsDarkMode((prev) => !prev);
+
+  const handleLogin = (user: string, remember: boolean) => {
+    const uname = user.trim() || 'admin';
+    setCurrentUser(uname);
+    setIsLoggedIn(true);
+    if (remember) {
+      localStorage.setItem('unipulse_auth', 'true');
+      localStorage.setItem('unipulse_user', uname);
+    } else {
+      sessionStorage.setItem('unipulse_auth', 'true');
+      sessionStorage.setItem('unipulse_user', uname);
+    }
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    sessionStorage.removeItem('unipulse_auth');
+    sessionStorage.removeItem('unipulse_user');
+    localStorage.removeItem('unipulse_auth');
+    localStorage.removeItem('unipulse_user');
+  };
 
   // Load all initial data
   const fetchData = useCallback(async (isSilent = false) => {
@@ -76,17 +104,19 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (isLoggedIn) {
+      fetchData();
+    }
+  }, [fetchData, isLoggedIn]);
 
-  // Periodic Auto-refresh (pause while adding/editing a device)
+  // Periodic Auto-refresh (pause while adding/editing a device or when logged out)
   useEffect(() => {
-    if (!autoRefresh || isDeviceModalOpen) return;
+    if (!isLoggedIn || !autoRefresh || isDeviceModalOpen) return;
     const interval = setInterval(() => {
       fetchData(true);
     }, 15000); // 15 seconds
     return () => clearInterval(interval);
-  }, [autoRefresh, isDeviceModalOpen, fetchData]);
+  }, [isLoggedIn, autoRefresh, isDeviceModalOpen, fetchData]);
 
   // Handlers
   const handleCheckDevice = async (id: number) => {
@@ -145,6 +175,16 @@ export function App() {
     }
   };
 
+  if (!isLoggedIn) {
+    return (
+      <LoginView
+        onLogin={handleLogin}
+        isDarkMode={isDarkMode}
+        onToggleTheme={toggleTheme}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 dark:bg-[#0c0916] dark:text-slate-100 flex flex-col font-sans transition-colors duration-200 selection:bg-purple-600 selection:text-amber-200">
       {/* Navigation Bar */}
@@ -158,7 +198,8 @@ export function App() {
         isRefreshing={isRefreshing}
         isDarkMode={isDarkMode}
         onToggleTheme={toggleTheme}
-        onOpenLogin={() => setIsLoginModalOpen(true)}
+        onLogout={handleLogout}
+        currentUser={currentUser}
       />
 
       {/* Backend connection alert if error */}
@@ -260,11 +301,6 @@ export function App() {
       <UserManualModal
         isOpen={isManualModalOpen}
         onClose={() => setIsManualModalOpen(false)}
-      />
-
-      <LoginModal
-        isOpen={isLoginModalOpen}
-        onClose={() => setIsLoginModalOpen(false)}
       />
 
       {/* Floating Small Dark/Light Mode Toggle Button */}

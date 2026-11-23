@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { 
   Building2, AlertTriangle, 
   Tv, Monitor, Server, Wifi, Network, X, Activity,
-  Zap, TrendingUp, Stethoscope, Edit3, RefreshCw, Map, LayoutGrid
+  Zap, TrendingUp, Stethoscope, Edit3, RefreshCw, Map, LayoutGrid, Globe
 } from 'lucide-react';
 import { Building, Device } from '../types';
 import { api } from '../api';
 import { CampusMap } from './CampusMap';
+import { GoogleCampusMap } from './GoogleCampusMap';
 
 interface CampusViewProps {
   buildings: Building[];
@@ -34,7 +35,7 @@ export const CampusView: React.FC<CampusViewProps> = ({
   const [selectedBuildingId, setSelectedBuildingId] = useState<number | null>(
     sortedBuildings.length > 0 ? sortedBuildings[0].id : null
   );
-  const [viewMode, setViewMode] = useState<'map' | 'grid'>('map');
+  const [viewMode, setViewMode] = useState<'map' | 'google' | 'grid'>('map');
   const [checkingIds, setCheckingIds] = useState<number[]>([]);
 
   const selectedBuilding = sortedBuildings.find((b) => b.id === selectedBuildingId) || (sortedBuildings.length > 0 ? sortedBuildings[0] : null);
@@ -210,36 +211,6 @@ export const CampusView: React.FC<CampusViewProps> = ({
             วิทยาเขตหลัก มรภ.บุรีรัมย์ — ตรวจสอบสถานะและคุณภาพสัญญาณเครือข่าย อาคาร 1 ถึง {buildings.length} (รวมหอประชุม, BRU DOME)
           </p>
         </div>
-
-        <div className="flex items-center space-x-2 flex-wrap gap-2">
-          {/* View mode toggle: Map vs Grid */}
-          <div className="bg-slate-100 border border-slate-200 dark:bg-[#150e28] dark:border-purple-900/50 rounded-xl p-1 flex items-center space-x-1 shadow-inner">
-            <button
-              type="button"
-              onClick={() => setViewMode('map')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                viewMode === 'map'
-                  ? 'bg-purple-700 text-white shadow-xs dark:bg-gradient-to-r dark:from-purple-800 dark:to-purple-700 dark:text-amber-200 dark:border-amber-400/40 dark:shadow-[0_0_10px_rgba(245,158,11,0.2)]'
-                  : 'text-slate-600 hover:text-slate-900 dark:text-purple-300/70 dark:hover:text-white'
-              }`}
-            >
-              <Map className="h-3.5 w-3.5" />
-              <span>ผังแผนที่ มรภ.บุรีรัมย์</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('grid')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                viewMode === 'grid'
-                  ? 'bg-purple-700 text-white shadow-xs dark:bg-gradient-to-r dark:from-purple-800 dark:to-purple-700 dark:text-amber-200 dark:border-amber-400/40 dark:shadow-[0_0_10px_rgba(245,158,11,0.2)]'
-                  : 'text-slate-600 hover:text-slate-900 dark:text-purple-300/70 dark:hover:text-white'
-              }`}
-            >
-              <LayoutGrid className="h-3.5 w-3.5" />
-              <span>รายชื่ออาคาร 1-23</span>
-            </button>
-          </div>
-        </div>
       </div>
 
       {buildings.length === 0 ? (
@@ -252,7 +223,7 @@ export const CampusView: React.FC<CampusViewProps> = ({
         </div>
       ) : (
         <>
-          {/* Interactive Campus Map View */}
+          {/* Interactive Campus Map View (Custom Blueprint with live device pins) */}
           {viewMode === 'map' && (
             <CampusMap
               buildings={sortedBuildings}
@@ -267,18 +238,51 @@ export const CampusView: React.FC<CampusViewProps> = ({
                   }
                 }, 50);
               }}
+              onSwitchToGoogleMap={() => setViewMode('google')}
+              onSwitchToGrid={() => setViewMode('grid')}
+            />
+          )}
+
+          {/* Google Maps Campus View */}
+          {viewMode === 'google' && (
+            <GoogleCampusMap
+              onSwitchToBlueprint={() => setViewMode('map')}
+              onSwitchToGrid={() => setViewMode('grid')}
             />
           )}
 
           {/* Quick Building Selector: Grid of อาคาร 1 ถึง 23 */}
           {viewMode === 'grid' && (
             <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs dark:bg-slate-900/60 dark:border-slate-800">
-              <div className="flex items-center justify-between mb-3 text-xs text-slate-500 dark:text-slate-400">
-                <span className="font-semibold text-slate-800 dark:text-slate-300 flex items-center space-x-1.5">
-                  <Building2 className="h-4 w-4 text-purple-700 dark:text-amber-400" />
-                  <span>เลือกอาคารสำหรับตรวจดูสถานะสัญญาณ (อาคาร 1 ถึง {buildings.length}):</span>
-                </span>
-                <span className="text-[11px] text-slate-400">คลิกเลือกอาคารเพื่อดูรายละเอียดสัญญาณ</span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 pb-3 border-b border-slate-100 dark:border-slate-800 text-xs">
+                <div>
+                  <span className="font-semibold text-slate-800 dark:text-slate-300 flex items-center space-x-1.5 text-xs sm:text-sm">
+                    <Building2 className="h-4 w-4 text-purple-700 dark:text-amber-400" />
+                    <span>เลือกอาคารสำหรับตรวจดูสถานะสัญญาณ (อาคาร 1 ถึง {buildings.length}):</span>
+                  </span>
+                  <span className="text-[11px] text-slate-400 block mt-0.5">คลิกเลือกอาคารเพื่อดูรายละเอียดสัญญาณด้านล่าง</span>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('map')}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-700 text-white hover:bg-purple-800 shadow-xs dark:bg-purple-800 dark:hover:bg-purple-700 dark:text-amber-200 transition cursor-pointer"
+                    title="กลับไปดูผังแม่บทพิมพ์เขียว"
+                  >
+                    <Map className="h-3.5 w-3.5" />
+                    <span>ผังแม่บทพิมพ์เขียว</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('google')}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 dark:text-emerald-300 dark:border-emerald-500/30 transition cursor-pointer"
+                    title="สลับไปดู Google Maps ดาวเทียม"
+                  >
+                    <Globe className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>Google Maps</span>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
