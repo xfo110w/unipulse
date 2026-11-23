@@ -1,4 +1,4 @@
-import type { DashboardStats, Device, Building, Room, Incident, HealthLog } from './types';
+import type { DashboardStats, Device, Building, Room, Incident, HealthLog, BuildingPin } from './types';
 
 const BASE_URL = '/api/v1';
 
@@ -175,5 +175,27 @@ export const api = {
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Test notification failed');
     return data;
+  },
+
+  // Building Pins (Google Maps custom pinning)
+  async getBuildingPins(): Promise<BuildingPin[]> {
+    const res = await fetch(`${BASE_URL}/locations/building-pins`);
+    if (!res.ok) throw new Error('Failed to fetch building pins');
+    return res.json();
+  },
+
+  async saveBuildingPin(pin: { building_id: number; lat: number; lng: number }): Promise<BuildingPin> {
+    const res = await fetch(`${BASE_URL}/locations/building-pins`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(pin),
+    });
+    if (!res.ok) throw new Error('Failed to save building pin');
+    return res.json();
+  },
+
+  async deleteBuildingPin(buildingId: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/locations/building-pins/${buildingId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete building pin');
   }
 };

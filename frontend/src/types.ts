@@ -18,6 +18,13 @@ export interface Building {
   rooms: Room[];
 }
 
+export interface BuildingPin {
+  building_id: number;
+  lat: number;
+  lng: number;
+  updated_at?: string;
+}
+
 export interface Device {
   id: number;
   name: string;

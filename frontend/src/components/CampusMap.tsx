@@ -106,17 +106,6 @@ export const CampusMap: React.FC<CampusMapProps> = ({
             </div>
           </div>
 
-          {/* Quick Building Selector: Grid Button (Replacing Zoom Buttons on toolbar - Red Circle) */}
-          {onSwitchToGrid && (
-            <button
-              onClick={onSwitchToGrid}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 shadow-xs dark:bg-[#1a1233] dark:hover:bg-purple-900/60 dark:text-purple-200 dark:border-purple-900/60 transition cursor-pointer"
-              title="ดูตารางรายชื่ออาคาร 1 ถึง 23"
-            >
-              <LayoutGrid className="h-3.5 w-3.5 text-purple-600 dark:text-amber-400" />
-              <span>รายชื่ออาคาร 1-23</span>
-            </button>
-          )}
 
           {onSwitchToGoogleMap && (
             <button

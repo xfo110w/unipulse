@@ -176,3 +176,16 @@ class SystemSettingSchema(BaseModel):
 
 class SystemSettingUpdate(BaseModel):
     value: str
+
+# Building Pin Schemas for custom Google Map markers
+class BuildingPinCreate(BaseModel):
+    building_id: int
+    lat: float
+    lng: float
+
+class BuildingPinRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    building_id: int
+    lat: float
+    lng: float
+    updated_at: datetime

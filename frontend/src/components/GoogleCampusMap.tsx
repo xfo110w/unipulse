@@ -1,35 +1,329 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Globe, ExternalLink, MapPin, Layers, ZoomIn, ZoomOut, 
-  RotateCcw, Compass, ArrowRight, ShieldCheck, Info, LayoutGrid, Map
+  RotateCcw, Compass, ShieldCheck, Info, Check, Trash2, 
+  AlertTriangle, CheckCircle2, Crosshair, ChevronDown, Search, X, Map as MapIcon,
+  Hand
 } from 'lucide-react';
+import { Building, Device, BuildingPin } from '../types';
+import { api } from '../api';
 
 interface GoogleCampusMapProps {
+  buildings: Building[];
+  devices: Device[];
+  selectedBuildingId: number | null;
+  onSelectBuilding: (buildingId: number) => void;
   onSwitchToBlueprint?: () => void;
-  onSwitchToGrid?: () => void;
+}
+
+const LOCAL_STORAGE_KEY = 'bru_google_building_pins_geo_v1';
+
+// Web Mercator projection formulas (EPSG:3857) - used by Google Maps & Leaflet
+function latLngToWorldPixel(lat: number, lng: number, zoom: number): { x: number; y: number } {
+  const scale = 256 * Math.pow(2, zoom);
+  const x = ((lng + 180) / 360) * scale;
+  const sinLat = Math.sin((lat * Math.PI) / 180);
+  const clampedSin = Math.max(-0.9999, Math.min(0.9999, sinLat));
+  const y = (0.5 - Math.log((1 + clampedSin) / (1 - clampedSin)) / (4 * Math.PI)) * scale;
+  return { x, y };
+}
+
+function worldPixelToLatLng(x: number, y: number, zoom: number): { lat: number; lng: number } {
+  const scale = 256 * Math.pow(2, zoom);
+  const lng = (x / scale) * 360 - 180;
+  const n = Math.PI - 2 * Math.PI * (y / scale);
+  const lat = (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+  return { lat, lng };
 }
 
 export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
+  buildings,
+  devices,
+  selectedBuildingId,
+  onSelectBuilding,
   onSwitchToBlueprint,
-  onSwitchToGrid,
 }) => {
-  // Map Type: 'hybrid' (satellite + roads/labels) vs 'roadmap' (vector standard map)
+  // Map Type: 'hybrid' (satellite + labels) vs 'roadmap' (vector standard map)
   const [mapType, setMapType] = useState<'hybrid' | 'roadmap'>('hybrid');
-  // Zoom Level: 17 fits BRU campus tightly as requested
+  // Zoom level: default 17 covers BRU campus nicely (range 15 to 19)
   const [zoomLevel, setZoomLevel] = useState<number>(17);
 
-  // BRU coordinates from user:
-  // Lat: 14.9908457, Lng: 103.1024334 (Center ~14.98896, 103.0983505)
-  const bruLat = 14.9908457;
-  const bruLng = 103.1024334;
+  // BRU coordinates center: 14.9908457, 103.1024334
+  const defaultCenter = { lat: 14.9908457, lng: 103.1024334 };
+  const [center, setCenter] = useState<{ lat: number; lng: number }>(defaultCenter);
+
+  // Dimensions of map container
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({ width: 800, height: 600 });
+  const mapViewportRef = useRef<HTMLDivElement>(null);
+
+  // Custom Pinning Mode
+  const [isPinningMode, setIsPinningMode] = useState<boolean>(false);
+  const [targetBuildingId, setTargetBuildingId] = useState<number>(
+    buildings.length > 0 ? buildings[0].id : 1
+  );
+  // Pins stored as real geographical coordinates: { [buildingId]: { lat: number; lng: number } }
+  const [pins, setPins] = useState<Record<number, { lat: number; lng: number }>>({});
+  const [searchBuildingQuery, setSearchBuildingQuery] = useState<string>('');
+  const [isSelectorOpen, setIsSelectorOpen] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [activePopupBuildingId, setActivePopupBuildingId] = useState<number | null>(null);
+
+  // Interactive Panning State
+  const [isDraggingMap, setIsDraggingMap] = useState<boolean>(false);
+  const dragStartRef = useRef<{ clientX: number; clientY: number; startWorldX: number; startWorldY: number } | null>(null);
+  const hasMovedRef = useRef<boolean>(false);
+
+  // Dragging individual pin state
+  const [draggingPinBuildingId, setDraggingPinBuildingId] = useState<number | null>(null);
+
   const fullGoogleMapsUrl = 'https://www.google.com/maps/place/%E0%B8%A1%E0%B8%AB%E0%B8%B2%E0%B8%A7%E0%B8%B4%E0%B8%97%E0%B8%A2%E0%B8%B2%E0%B8%A5%E0%B8%B1%E0%B8%A2%E0%B8%A3%E0%B8%B2%E0%B8%8A%E0%B8%A0%E0%B8%B1%E0%B8%8F%E0%B8%9A%E0%B8%B8%E0%B8%A3%E0%B8%B1%E0%B8%A1%E0%B8%A2%E0%B9%8C/@14.98896,103.0983505,17.47z/data=!4m6!3m5!1s0x311995c5e2b147a3:0xf0469d0a80731b0!8m2!3d14.9908457!4d103.1024334!16s%2Fm%2F0cr2df0';
 
-  // Construct iframe source for Google Maps
-  // t=h for hybrid (satellite + labels), t=m for standard roadmap
-  const mapSrc = `https://maps.google.com/maps?q=${bruLat},${bruLng}+(${encodeURIComponent('มหาวิทยาลัยราชภัฏบุรีรัมย์')})&t=${mapType === 'hybrid' ? 'h' : 'm'}&z=${zoomLevel}&hl=th&output=embed`;
+  // Measure container size
+  useEffect(() => {
+    const updateSize = () => {
+      if (mapViewportRef.current) {
+        setContainerSize({
+          width: mapViewportRef.current.clientWidth || 800,
+          height: mapViewportRef.current.clientHeight || 600,
+        });
+      }
+    };
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
+
+  // Load custom pins from localStorage and server API
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed === 'object') {
+          setPins(parsed);
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    api.getBuildingPins()
+      .then((serverPins: BuildingPin[]) => {
+        if (serverPins && Array.isArray(serverPins)) {
+          setPins(prev => {
+            const next = { ...prev };
+            serverPins.forEach(p => {
+              if (p.lat && p.lng) {
+                next[p.building_id] = { lat: p.lat, lng: p.lng };
+              }
+            });
+            try {
+              localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(next));
+            } catch {
+              // ignore
+            }
+            return next;
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Save pin helper
+  const handleSavePin = useCallback((bId: number, lat: number, lng: number) => {
+    const updated = { ...pins, [bId]: { lat, lng } };
+    setPins(updated);
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+
+    const b = buildings.find(x => x.id === bId);
+    setToastMessage(`ปักตำแหน่ง ${b ? b.name : `อาคาร ${bId}`} สำเร็จ`);
+    setTimeout(() => setToastMessage(null), 2500);
+
+    // Save to API in background
+    api.saveBuildingPin({ building_id: bId, lat, lng }).catch(() => {});
+  }, [pins, buildings]);
+
+  const handleDeletePin = (bId: number) => {
+    const updated = { ...pins };
+    delete updated[bId];
+    setPins(updated);
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+
+    const b = buildings.find(x => x.id === bId);
+    setToastMessage(`ลบหมุด ${b ? b.name : `อาคาร ${bId}`} เรียบร้อย`);
+    setTimeout(() => setToastMessage(null), 2500);
+
+    api.deleteBuildingPin(bId).catch(() => {});
+    if (activePopupBuildingId === bId) setActivePopupBuildingId(null);
+  };
+
+  const handleClearAllPins = () => {
+    if (window.confirm('คุณต้องการล้างหมุดอาคารทั้งหมดบนแผนที่ Google Maps ใช่หรือไม่?')) {
+      setPins({});
+      try {
+        localStorage.removeItem(LOCAL_STORAGE_KEY);
+      } catch {
+        // ignore
+      }
+      setToastMessage('ล้างหมุดทั้งหมดเรียบร้อยแล้ว');
+      setTimeout(() => setToastMessage(null), 2500);
+      setActivePopupBuildingId(null);
+    }
+  };
+
+  // World pixel coordinates of current center
+  const centerWorld = latLngToWorldPixel(center.lat, center.lng, zoomLevel);
+
+  // Compute visible tile ranges
+  const minWorldX = centerWorld.x - containerSize.width / 2;
+  const maxWorldX = centerWorld.x + containerSize.width / 2;
+  const minWorldY = centerWorld.y - containerSize.height / 2;
+  const maxWorldY = centerWorld.y + containerSize.height / 2;
+
+  const minTileX = Math.floor(minWorldX / 256);
+  const maxTileX = Math.floor(maxWorldX / 256);
+  const minTileY = Math.floor(minWorldY / 256);
+  const maxTileY = Math.floor(maxWorldY / 256);
+
+  // Generate tiles array
+  const tiles: Array<{ x: number; y: number; left: number; top: number; url: string; key: string }> = [];
+  const tileMode = mapType === 'roadmap' ? 'm' : 'y';
+
+  for (let tx = minTileX; tx <= maxTileX; tx++) {
+    for (let ty = minTileY; ty <= maxTileY; ty++) {
+      const tileLeft = tx * 256 - centerWorld.x + containerSize.width / 2;
+      const tileTop = ty * 256 - centerWorld.y + containerSize.height / 2;
+      const sub = Math.abs((tx + ty) % 4);
+      const url = `https://mt${sub}.google.com/vt/lyrs=${tileMode}&x=${tx}&y=${ty}&z=${zoomLevel}`;
+      tiles.push({ x: tx, y: ty, left: tileLeft, top: tileTop, url, key: `${tx}-${ty}-${zoomLevel}-${mapType}` });
+    }
+  }
+
+  // Panning with Mouse Drag
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only drag with left mouse button
+    if (e.button !== 0) return;
+    setIsDraggingMap(true);
+    hasMovedRef.current = false;
+    dragStartRef.current = {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      startWorldX: centerWorld.x,
+      startWorldY: centerWorld.y,
+    };
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDraggingMap || !dragStartRef.current) return;
+
+    const dx = e.clientX - dragStartRef.current.clientX;
+    const dy = e.clientY - dragStartRef.current.clientY;
+
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      hasMovedRef.current = true;
+    }
+
+    const newWorldX = dragStartRef.current.startWorldX - dx;
+    const newWorldY = dragStartRef.current.startWorldY - dy;
+    const newCenter = worldPixelToLatLng(newWorldX, newWorldY, zoomLevel);
+
+    // Limit pan to Buriram Rajabhat area (Latitude 14.97 to 15.01, Longitude 103.08 to 103.12)
+    const clampedLat = Math.max(14.975, Math.min(15.008, newCenter.lat));
+    const clampedLng = Math.max(103.085, Math.min(103.120, newCenter.lng));
+
+    setCenter({ lat: clampedLat, lng: clampedLng });
+  };
+
+  const handleMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsDraggingMap(false);
+
+    // If mouse didn't drag and Pin Mode is active: Place a pin!
+    if (!hasMovedRef.current && isPinningMode && !draggingPinBuildingId) {
+      if (!mapViewportRef.current) return;
+      const rect = mapViewportRef.current.getBoundingClientRect();
+      const clickScreenX = e.clientX - rect.left;
+      const clickScreenY = e.clientY - rect.top;
+
+      const clickWorldX = centerWorld.x - containerSize.width / 2 + clickScreenX;
+      const clickWorldY = centerWorld.y - containerSize.height / 2 + clickScreenY;
+      const geo = worldPixelToLatLng(clickWorldX, clickWorldY, zoomLevel);
+
+      handleSavePin(targetBuildingId, geo.lat, geo.lng);
+    }
+
+    dragStartRef.current = null;
+  };
+
+  // Mouse Wheel Zoom
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (e.deltaY < 0) {
+      setZoomLevel(prev => Math.min(prev + 1, 19));
+    } else if (e.deltaY > 0) {
+      setZoomLevel(prev => Math.max(prev - 1, 15));
+    }
+  };
+
+  // Zoom button handlers
+  const handleZoomIn = () => setZoomLevel(prev => Math.min(prev + 1, 19));
+  const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 1, 15));
+  const handleResetZoom = () => {
+    setCenter(defaultCenter);
+    setZoomLevel(17);
+  };
+
+  // Dragging individual pin listener
+  useEffect(() => {
+    if (!draggingPinBuildingId) return;
+
+    const onWindowMove = (e: MouseEvent) => {
+      if (!mapViewportRef.current) return;
+      const rect = mapViewportRef.current.getBoundingClientRect();
+      const screenX = e.clientX - rect.left;
+      const screenY = e.clientY - rect.top;
+
+      const worldX = centerWorld.x - containerSize.width / 2 + screenX;
+      const worldY = centerWorld.y - containerSize.height / 2 + screenY;
+      const geo = worldPixelToLatLng(worldX, worldY, zoomLevel);
+
+      handleSavePin(draggingPinBuildingId, geo.lat, geo.lng);
+    };
+
+    const onWindowUp = () => {
+      setDraggingPinBuildingId(null);
+    };
+
+    window.addEventListener('mousemove', onWindowMove);
+    window.addEventListener('mouseup', onWindowUp);
+
+    return () => {
+      window.removeEventListener('mousemove', onWindowMove);
+      window.removeEventListener('mouseup', onWindowUp);
+    };
+  }, [draggingPinBuildingId, centerWorld, containerSize, zoomLevel, handleSavePin]);
+
+  const currentTargetBuilding = buildings.find(b => b.id === targetBuildingId);
+  const currentTargetPin = pins[targetBuildingId];
+  const pinnedCount = Object.keys(pins).length;
+
+  // Filtered buildings for selector dropdown
+  const filteredBuildings = buildings.filter(b => {
+    if (!searchBuildingQuery.trim()) return true;
+    const q = searchBuildingQuery.toLowerCase().trim();
+    const num = String(parseInt(b.code, 10) || parseInt(b.name.replace(/\D/g, ''), 10) || b.id);
+    return b.name.toLowerCase().includes(q) || b.code.toLowerCase().includes(q) || num.includes(q) || (b.description || '').toLowerCase().includes(q);
+  });
 
   return (
-    <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-xs dark:bg-[#120c24]/90 dark:border-purple-900/50 dark:shadow-xl dark:shadow-purple-950/20 flex flex-col transition-colors duration-200">
+    <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-xs dark:bg-[#120c24]/90 dark:border-purple-900/50 dark:shadow-xl dark:shadow-purple-950/20 flex flex-col transition-colors duration-200 select-none">
       {/* Header & Controls Toolbar */}
       <div className="px-4 py-3 bg-slate-50/90 border-b border-slate-200 dark:bg-[#160e2b]/95 dark:border-purple-900/50 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center space-x-2.5 min-w-0">
@@ -37,19 +331,21 @@ export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
             <Globe className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center space-x-2 flex-wrap">
               <span>Google Maps — มหาวิทยาลัยราชภัฏบุรีรัมย์</span>
               <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30 px-2 py-0.5 rounded-full font-semibold whitespace-nowrap">
-                Live Embed
+                {isPinningMode ? 'กำลังปักเลขอาคาร' : `ปักแล้ว ${pinnedCount} อาคาร`}
               </span>
             </h3>
             <p className="text-[11px] text-slate-500 dark:text-purple-200/70 truncate">
-              พิกัด 14.9908457, 103.1024334 • แผนที่และภาพถ่ายดาวเทียมจริงครอบคลุมพื้นที่มหาวิทยาลัย
+              {isPinningMode 
+                ? 'คลิกค้างแล้วลากเพื่อเลื่อนหาตำแหน่งตึก • คลิกบนหลังคาตึกเพื่อปักเลขอาคาร'
+                : 'แผนที่ดาวเทียมเลื่อนและซูมได้อิสระ • คลิกที่ตัวเลขอาคารเพื่อตรวจดูอุปกรณ์'}
             </p>
           </div>
         </div>
 
-        {/* Map Type Switcher & Action Controls - Aligned Right */}
+        {/* Action Controls - Aligned Right */}
         <div className="ml-auto flex items-center justify-end space-x-2 flex-wrap gap-2">
           {/* Layer switcher: Hybrid vs Roadmap */}
           <div className="flex items-center bg-white border border-slate-200 text-slate-700 shadow-xs dark:bg-[#1a1233] dark:border-purple-900/60 dark:text-purple-200 rounded-xl p-0.5 text-xs shrink-0">
@@ -79,26 +375,40 @@ export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
             </button>
           </div>
 
-          {/* Quick Building Selector: Grid Button */}
-          {onSwitchToGrid && (
-            <button
-              onClick={onSwitchToGrid}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 shadow-xs dark:bg-[#1a1233] dark:hover:bg-purple-900/60 dark:text-purple-200 dark:border-purple-900/60 transition cursor-pointer shrink-0"
-              title="ดูตารางรายชื่ออาคาร 1 ถึง 23"
-            >
-              <LayoutGrid className="h-3.5 w-3.5 text-purple-600 dark:text-amber-400" />
-              <span>รายชื่ออาคาร 1-23</span>
-            </button>
-          )}
+          {/* NEW FEATURE BUTTON: Custom Pinning Feature (Replaces "รายชื่ออาคาร 1-23" on this toolbar) */}
+          <button
+            onClick={() => {
+              setIsPinningMode(!isPinningMode);
+              setActivePopupBuildingId(null);
+            }}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-xs transition cursor-pointer shrink-0 ${
+              isPinningMode
+                ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-bold ring-2 ring-amber-400 shadow-amber-500/30'
+                : 'bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 dark:bg-[#1a1233] dark:hover:bg-purple-900/60 dark:text-amber-300 dark:border-purple-800/80'
+            }`}
+            title="เปิด/ปิด โหมดปักเลขอาคารบนแผนที่ Google Maps"
+          >
+            {isPinningMode ? (
+              <>
+                <Check className="h-3.5 w-3.5" />
+                <span>เสร็จสิ้นการปักหมุด</span>
+              </>
+            ) : (
+              <>
+                <MapPin className="h-3.5 w-3.5 text-purple-600 dark:text-amber-400" />
+                <span>ปักเลขอาคาร</span>
+              </>
+            )}
+          </button>
 
           {/* Quick jump to custom blueprint map */}
           {onSwitchToBlueprint && (
             <button
               onClick={onSwitchToBlueprint}
               className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-700 text-white hover:bg-purple-800 shadow-xs dark:bg-purple-800 dark:hover:bg-purple-700 dark:text-amber-300 dark:border dark:border-amber-400/40 transition cursor-pointer shrink-0"
-              title="สลับไปดูผังพิมพ์เขียวเพื่อดูตำแหน่งอุปกรณ์และสถานะเครือข่าย"
+              title="สลับไปดูผังแม่บทพิมพ์เขียว"
             >
-              <Map className="h-3.5 w-3.5" />
+              <MapIcon className="h-3.5 w-3.5" />
               <span>ผังแม่บทพิมพ์เขียว</span>
             </button>
           )}
@@ -117,57 +427,426 @@ export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
         </div>
       </div>
 
-      {/* Google Maps Embed Iframe Viewport */}
-      <div className="relative w-full h-[520px] sm:h-[620px] bg-slate-900 overflow-hidden">
-        {/* Floating Zoom Controls at Top-Left (Yellow Circle) */}
-        <div className="absolute top-3 left-3 z-20 flex items-center bg-white/95 dark:bg-[#160e2b]/95 backdrop-blur-md border border-slate-200 dark:border-purple-900/70 text-slate-700 dark:text-purple-200 rounded-xl p-0.5 shadow-lg">
+      {/* PINNING CONTROL BAR: Shown when Pin Mode is Active */}
+      {isPinningMode && (
+        <div className="px-4 py-2.5 bg-gradient-to-r from-purple-900/95 via-[#1e1338]/95 to-purple-950/95 border-b border-amber-500/40 text-white flex flex-wrap items-center justify-between gap-3 text-xs z-30 shadow-md">
+          <div className="flex items-center space-x-2 flex-wrap gap-2">
+            <span className="font-bold text-amber-300 flex items-center space-x-1">
+              <Crosshair className="h-4 w-4 text-amber-400 animate-spin" />
+              <span>เลือกอาคารที่จะปัก:</span>
+            </span>
+
+            {/* Searchable Dropdown for 1-110 Buildings */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsSelectorOpen(!isSelectorOpen)}
+                className="flex items-center justify-between min-w-[240px] px-3 py-1.5 rounded-xl bg-slate-900/90 border border-purple-500/50 hover:border-amber-400 text-white font-medium text-xs transition cursor-pointer"
+              >
+                <span className="truncate mr-2">
+                  {currentTargetBuilding ? currentTargetBuilding.name : 'เลือกอาคาร...'}
+                </span>
+                <span className="flex items-center space-x-1.5 shrink-0">
+                  {currentTargetPin ? (
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.2 rounded font-sans">
+                      ปักแล้ว
+                    </span>
+                  ) : (
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.2 rounded font-sans">
+                      ยังไม่ปัก
+                    </span>
+                  )}
+                  <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                </span>
+              </button>
+
+              {/* Dropdown Menu */}
+              {isSelectorOpen && (
+                <div className="absolute top-full left-0 mt-1 w-80 max-h-72 bg-slate-900 border border-purple-800 rounded-xl shadow-2xl overflow-hidden z-50 flex flex-col">
+                  <div className="p-2 border-b border-purple-900/60 bg-slate-950 flex items-center space-x-2">
+                    <Search className="h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      value={searchBuildingQuery}
+                      onChange={(e) => setSearchBuildingQuery(e.target.value)}
+                      placeholder="พิมพ์ค้นหาชื่อ หรือ เลขอาคาร..."
+                      className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none"
+                      autoFocus
+                    />
+                    {searchBuildingQuery && (
+                      <button onClick={() => setSearchBuildingQuery('')} className="text-slate-400 hover:text-white">
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="overflow-y-auto flex-1 divide-y divide-purple-950/40">
+                    {filteredBuildings.map(b => {
+                      const isPinned = !!pins[b.id];
+                      const isCurrent = targetBuildingId === b.id;
+                      const num = parseInt(b.code, 10) || parseInt(b.name.replace(/\D/g, ''), 10) || b.id;
+
+                      return (
+                        <button
+                          key={b.id}
+                          type="button"
+                          onClick={() => {
+                            setTargetBuildingId(b.id);
+                            setIsSelectorOpen(false);
+                            // Pan to pin if already exists
+                            if (pins[b.id]) {
+                              setCenter({ lat: pins[b.id].lat, lng: pins[b.id].lng });
+                            }
+                          }}
+                          className={`w-full text-left px-3 py-2 flex items-center justify-between text-xs transition cursor-pointer ${
+                            isCurrent
+                              ? 'bg-purple-800/80 text-amber-300 font-bold'
+                              : 'hover:bg-purple-950/60 text-slate-200'
+                          }`}
+                        >
+                          <div className="truncate mr-2">
+                            <span className="font-mono text-purple-300 mr-1.5">#{num}</span>
+                            <span>{b.name}</span>
+                          </div>
+                          {isPinned ? (
+                            <span className="text-[10px] text-emerald-400 bg-emerald-950/60 px-1.5 py-0.2 rounded shrink-0">
+                              ✓ ปักแล้ว
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-500 shrink-0">
+                              ยังไม่ปัก
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Instruction Tag */}
+            <span className="text-[11px] text-purple-200/90 hidden sm:inline flex items-center space-x-1">
+              <Hand className="h-3.5 w-3.5 text-amber-300" />
+              <span>คลิกลากเพื่อเลื่อนหาตำแหน่ง • คลิกบนหลังคาตึกเพื่อวางหมุด</span>
+            </span>
+          </div>
+
+          {/* Current Pin Actions */}
+          <div className="flex items-center space-x-2">
+            {currentTargetPin && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCenter({ lat: currentTargetPin.lat, lng: currentTargetPin.lng });
+                    setZoomLevel(18);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-purple-950/80 hover:bg-purple-900 border border-purple-700/60 text-purple-200 text-xs transition cursor-pointer"
+                  title="เลื่อนแผนที่ไปที่ตำแหน่งหมุดนี้"
+                >
+                  เลื่อนไปที่หมุด
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeletePin(targetBuildingId)}
+                  className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-rose-950/80 hover:bg-rose-900 border border-rose-700/60 text-rose-300 text-xs transition cursor-pointer"
+                  title="ลบหมุดของอาคารนี้"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  <span>ลบหมุด</span>
+                </button>
+              </>
+            )}
+
+            {pinnedCount > 0 && (
+              <button
+                type="button"
+                onClick={handleClearAllPins}
+                className="px-2 py-1 rounded-lg text-slate-400 hover:text-rose-300 text-[11px] transition cursor-pointer"
+                title="ล้างหมุดทั้งหมดบนแผนที่"
+              >
+                ล้างทั้งหมด
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Notification Toast */}
+      {toastMessage && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 border border-amber-400/80 text-amber-300 px-4 py-1.5 rounded-full text-xs font-semibold shadow-2xl flex items-center space-x-2 animate-bounce">
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Map Viewport Area (Interactive Slippy Map with Google Satellite Tiles) */}
+      <div 
+        ref={mapViewportRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onWheel={handleWheel}
+        className={`relative w-full h-[520px] sm:h-[620px] bg-slate-950 overflow-hidden ${
+          isDraggingMap 
+            ? 'cursor-grabbing' 
+            : isPinningMode 
+            ? 'cursor-crosshair' 
+            : 'cursor-grab'
+        }`}
+      >
+        {/* Floating Zoom Controls at Top-Left */}
+        <div 
+          onMouseDown={(e) => e.stopPropagation()}
+          className="absolute top-3 left-3 z-30 flex items-center bg-white/95 dark:bg-[#160e2b]/95 backdrop-blur-md border border-slate-200 dark:border-purple-900/70 text-slate-700 dark:text-purple-200 rounded-xl p-0.5 shadow-lg"
+        >
           <button
-            onClick={() => setZoomLevel(prev => Math.min(prev + 1, 20))}
+            onClick={handleZoomIn}
             className="p-1.5 text-slate-600 hover:text-purple-900 hover:bg-slate-100 dark:text-purple-200 dark:hover:text-amber-300 dark:hover:bg-purple-900/50 rounded-lg transition cursor-pointer"
             title="ซูมเข้า (+)"
           >
             <ZoomIn className="h-3.5 w-3.5" />
           </button>
           <button
-            onClick={() => setZoomLevel(17)}
+            onClick={handleResetZoom}
             className="px-2 py-1 text-[11px] font-mono font-semibold text-slate-600 hover:text-purple-900 dark:text-purple-300/80 dark:hover:text-amber-300 transition cursor-pointer"
             title="รีเซ็ตซูมครอบคลุมทั้งมหาลัย (z=17)"
           >
             z:{zoomLevel}
           </button>
           <button
-            onClick={() => setZoomLevel(prev => Math.max(prev - 1, 14))}
+            onClick={handleZoomOut}
             className="p-1.5 text-slate-600 hover:text-purple-900 hover:bg-slate-100 dark:text-purple-200 dark:hover:text-amber-300 dark:hover:bg-purple-900/50 rounded-lg transition cursor-pointer"
             title="ซูมออก (-)"
           >
             <ZoomOut className="h-3.5 w-3.5" />
           </button>
           <button
-            onClick={() => { setZoomLevel(17); setMapType('hybrid'); }}
+            onClick={handleResetZoom}
             className="p-1.5 text-slate-400 hover:text-purple-900 hover:bg-slate-100 dark:text-purple-400 dark:hover:text-amber-300 dark:hover:bg-purple-900/50 rounded-lg transition cursor-pointer ml-0.5 border-l border-slate-200 dark:border-purple-900/60"
-            title="รีเซ็ตเป็นมุมมองมหาวิทยาลัยราชภัฏบุรีรัมย์"
+            title="รีเซ็ตเป็นมุมมองศูนย์กลาง มรภ.บุรีรัมย์"
           >
             <RotateCcw className="h-3.5 w-3.5" />
           </button>
         </div>
-        <iframe
-          key={`${mapType}-${zoomLevel}`}
-          title="แผนที่มหาวิทยาลัยราชภัฏบุรีรัมย์ Google Maps"
-          src={mapSrc}
-          className="w-full h-full border-0 select-none"
-          loading="lazy"
-          allowFullScreen
-          referrerPolicy="no-referrer-when-downgrade"
-        />
+
+        {/* Live Pannable Google Satellite Tiles Grid */}
+        <div className="absolute inset-0 pointer-events-none">
+          {tiles.map(tile => (
+            <img
+              key={tile.key}
+              src={tile.url}
+              alt=""
+              draggable={false}
+              className="absolute w-[256px] h-[256px] select-none block"
+              style={{
+                left: `${tile.left}px`,
+                top: `${tile.top}px`,
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Overlaid Custom Pinned Buildings (Glued directly to Geo Coordinates as you Pan and Zoom) */}
+        <div className="absolute inset-0 pointer-events-none z-20">
+          {Object.entries(pins).map(([bIdStr, pos]) => {
+            const bId = parseInt(bIdStr, 10);
+            const b = buildings.find(x => x.id === bId);
+            if (!b) return null;
+
+            // Project geo coordinate (pos.lat, pos.lng) to screen pixel
+            const pinWorld = latLngToWorldPixel(pos.lat, pos.lng, zoomLevel);
+            const screenX = pinWorld.x - centerWorld.x + containerSize.width / 2;
+            const screenY = pinWorld.y - centerWorld.y + containerSize.height / 2;
+
+            // Don't render if outside viewport by large margin
+            if (screenX < -60 || screenX > containerSize.width + 60 || screenY < -60 || screenY > containerSize.height + 60) {
+              return null;
+            }
+
+            const num = parseInt(b.code, 10) || parseInt(b.name.replace(/\D/g, ''), 10) || b.id;
+            const bDevices = devices.filter(d => d.building_id === b.id);
+            const hasOffline = bDevices.some(d => d.status === 'OFFLINE');
+            const hasOnline = bDevices.some(d => d.status === 'ONLINE');
+            const isSelected = selectedBuildingId === b.id;
+            const isCurrentTarget = isPinningMode && targetBuildingId === b.id;
+            const isPopupOpen = activePopupBuildingId === b.id;
+
+            return (
+              <div
+                key={b.id}
+                style={{
+                  position: 'absolute',
+                  left: `${screenX}px`,
+                  top: `${screenY}px`,
+                  transform: 'translate(-50%, -50%)',
+                }}
+                className={`transition-transform duration-100 ${
+                  isPopupOpen || isCurrentTarget ? 'z-50' : isSelected ? 'z-40' : hasOffline ? 'z-30' : 'z-20'
+                }`}
+              >
+                {/* Building Number Pin Badge */}
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    if (isPinningMode) {
+                      setDraggingPinBuildingId(b.id);
+                      setTargetBuildingId(b.id);
+                    }
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isPinningMode) {
+                      setTargetBuildingId(b.id);
+                    } else {
+                      onSelectBuilding(b.id);
+                      setActivePopupBuildingId(isPopupOpen ? null : b.id);
+                    }
+                  }}
+                  className={`relative flex items-center justify-center font-mono font-black transition-all cursor-pointer pointer-events-auto select-none ${
+                    isCurrentTarget
+                      ? 'h-8 w-8 rounded-full bg-amber-500 text-slate-950 text-xs ring-4 ring-white shadow-2xl scale-125'
+                      : isSelected
+                      ? 'h-8 w-8 rounded-full bg-gradient-to-tr from-purple-700 via-purple-600 to-amber-500 text-white text-xs ring-3 ring-amber-400 shadow-xl scale-110'
+                      : hasOffline
+                      ? 'h-7 w-7 rounded-full bg-rose-600 text-white text-[11px] ring-2 ring-white shadow-lg animate-pulse'
+                      : hasOnline
+                      ? 'h-7 w-7 rounded-full bg-emerald-600 text-white text-[11px] ring-2 ring-emerald-300 shadow-md'
+                      : 'h-6 w-6 rounded-full bg-purple-900/90 hover:bg-purple-800 text-purple-100 text-[10px] border border-purple-400/60 shadow-md'
+                  }`}
+                  title={isPinningMode ? `อาคาร #${num} (คลิกลากเพื่อปรับตำแหน่ง)` : `อาคาร #${num} ${b.name}`}
+                >
+                  {num}
+
+                  {/* Red offline warning dot */}
+                  {hasOffline && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-600 border border-white text-[7px] text-white font-bold items-center justify-center">!</span>
+                    </span>
+                  )}
+
+                  {/* Device count pill */}
+                  {bDevices.length > 0 && !hasOffline && (
+                    <span className="absolute -bottom-1 -right-1 bg-emerald-500 text-white text-[8px] font-sans font-bold px-1 rounded-full border border-white">
+                      {bDevices.length}
+                    </span>
+                  )}
+                </button>
+
+                {/* Inspect Popup Card (When clicked in normal mode) */}
+                {isPopupOpen && !isPinningMode && (
+                  <div
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 backdrop-blur-md border border-purple-500/50 rounded-2xl p-3 text-white shadow-2xl pointer-events-auto z-50 text-xs"
+                  >
+                    <div className="flex items-start justify-between gap-1 mb-1">
+                      <div className="flex items-center space-x-1.5">
+                        <span className="bg-purple-700 text-white px-1.5 py-0.2 rounded font-mono font-bold text-[10px]">
+                          #{num}
+                        </span>
+                        <span className="font-bold text-white text-xs leading-tight">
+                          {b.name}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setActivePopupBuildingId(null)}
+                        className="text-slate-400 hover:text-white p-0.5"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] text-purple-200/80 mb-2 line-clamp-2">
+                      {b.description || 'ไม่มีคำอธิบาย'}
+                    </p>
+
+                    {/* Status badge */}
+                    <div className="p-2 rounded-xl bg-slate-950/80 border border-purple-900/60 mb-2 space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">สถานะอุปกรณ์:</span>
+                        {hasOffline ? (
+                          <span className="font-bold text-rose-400 flex items-center space-x-1">
+                            <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>
+                            <span>มีปัญหา (DOWN)</span>
+                          </span>
+                        ) : hasOnline ? (
+                          <span className="font-bold text-emerald-400 flex items-center space-x-1">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+                            <span>ปกติ ({bDevices.length} เครื่อง)</span>
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">ยังไม่มีอุปกรณ์</span>
+                        )}
+                      </div>
+
+                      {/* Device names mini list */}
+                      {bDevices.slice(0, 2).map(d => (
+                        <div key={d.id} className="text-[10px] text-slate-300 truncate flex items-center justify-between">
+                          <span className="truncate">{d.name}</span>
+                          <span className={d.status === 'OFFLINE' ? 'text-rose-400 font-bold' : 'text-emerald-400'}>
+                            {d.status === 'OFFLINE' ? 'DOWN' : 'UP'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        onSelectBuilding(b.id);
+                        setActivePopupBuildingId(null);
+                        setTimeout(() => {
+                          const el = document.getElementById('building-details-section');
+                          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }, 50);
+                      }}
+                      className="w-full py-1.5 px-3 rounded-xl bg-purple-700 hover:bg-purple-600 text-amber-200 font-bold text-xs transition cursor-pointer text-center"
+                    >
+                      🔍 ตรวจดูอุปกรณ์และจัดการสัญญาณ
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Empty State Banner if no pins placed yet */}
+        {pinnedCount === 0 && !isPinningMode && (
+          <div 
+            onMouseDown={(e) => e.stopPropagation()}
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-slate-900/90 backdrop-blur-md border border-purple-500/40 text-white p-5 rounded-2xl shadow-2xl max-w-sm text-center space-y-3 pointer-events-auto"
+          >
+            <div className="p-3 bg-purple-900/50 rounded-full w-12 h-12 flex items-center justify-center mx-auto text-amber-300">
+              <MapPin className="h-6 w-6" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-white">ยังไม่มีการปักหมุดอาคารบนแผนที่</h4>
+              <p className="text-xs text-slate-400 mt-1">
+                คลิกลากแผนที่เพื่อเลื่อนหาอาคาร จากนั้นกดปุ่ม "ปักเลขอาคาร" เพื่อเริ่มวางหมุด
+              </p>
+            </div>
+            <button
+              onClick={() => setIsPinningMode(true)}
+              className="w-full py-2 px-4 rounded-xl bg-gradient-to-r from-purple-700 to-purple-800 hover:from-purple-600 hover:to-purple-700 text-amber-200 text-xs font-bold shadow-md cursor-pointer transition flex items-center justify-center space-x-1.5"
+            >
+              <Crosshair className="h-4 w-4" />
+              <span>เริ่มปักเลขอาคารตอนนี้</span>
+            </button>
+          </div>
+        )}
 
         {/* Floating Campus Badge */}
-        <div className="absolute bottom-4 left-4 z-10 pointer-events-none hidden sm:flex items-center space-x-2 bg-slate-900/85 backdrop-blur-md border border-purple-500/30 text-white px-3 py-2 rounded-xl shadow-lg">
+        <div className="absolute bottom-4 left-4 z-20 pointer-events-none hidden sm:flex items-center space-x-2 bg-slate-900/85 backdrop-blur-md border border-purple-500/30 text-white px-3 py-2 rounded-xl shadow-lg">
           <MapPin className="h-4 w-4 text-amber-400 shrink-0" />
           <div className="text-left text-xs">
             <div className="font-bold text-white flex items-center space-x-1.5">
               <span>มหาวิทยาลัยราชภัฏบุรีรัมย์ (BRU)</span>
               <span className="text-[10px] text-amber-300 bg-amber-400/20 px-1.5 py-0.2 rounded font-mono">
-                14.9908°N, 103.1024°E
+                {pinnedCount} หมุดอาคาร
               </span>
             </div>
             <div className="text-[11px] text-purple-200/80">
@@ -184,43 +863,16 @@ export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
             <Info className="h-4 w-4 text-purple-600 dark:text-amber-400 shrink-0 mt-0.5" />
             <div>
               <span className="font-semibold text-slate-800 dark:text-white">
-                หมายเหตุการแสดงผล:
+                วิธีใช้งานแผนที่และปักเลขอาคาร:
               </span>{' '}
-              โหมดนี้แสดงภาพถ่ายสภาพแวดล้อมจริงและอาคารผ่าน Google Maps โดยครอบคลุมพื้นที่มหาวิทยาลัยราชภัฏบุรีรัมย์ หากต้องการดูหมุดตรวจจับสถานะอุปกรณ์เครือข่าย (UP/DOWN) และสวิตช์ประจำอาคาร สามารถกดปุ่ม{' '}
-              <button
-                onClick={onSwitchToBlueprint}
-                className="font-bold text-purple-700 hover:text-purple-900 dark:text-amber-300 dark:hover:text-amber-200 underline cursor-pointer"
-              >
-                "ผังแม่บทพิมพ์เขียว"
-              </button>{' '}
-              ที่แถบด้านบน
+              คลิกค้างแล้วลากเพื่อเลื่อนดูอาคารต่างๆ ทั่ววิทยาเขต มรภ.บุรีรัมย์ และหมุนล้อเมาส์เพื่อซูมเข้า/ออก เมื่อต้องการวางหมุด กดปุ่ม <span className="font-bold text-purple-700 dark:text-amber-300">"ปักเลขอาคาร"</span> แล้วคลิกตรงหลังคาตึกที่ต้องการได้ทันที
             </div>
           </div>
 
           <div className="flex items-center space-x-2 text-[11px] text-slate-500 dark:text-purple-300/70 shrink-0">
             <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-            <span>พิกัดวิทยาเขตหลัก มรภ.บุรีรัมย์</span>
+            <span>เลื่อนและซูมได้อย่างอิสระ</span>
           </div>
-        </div>
-
-        {/* Quick Landmarks Chips */}
-        <div className="pt-2 border-t border-slate-200/80 dark:border-purple-900/30 flex items-center gap-2 flex-wrap text-[11px]">
-          <span className="font-semibold text-slate-700 dark:text-purple-300">จุดสำคัญในวิทยาเขต:</span>
-          <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-600 dark:bg-purple-950/40 dark:border-purple-800/60 dark:text-purple-200">
-            🏢 อาคาร 1–23 (อาคารเรียนและคณะต่างๆ)
-          </span>
-          <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-600 dark:bg-purple-950/40 dark:border-purple-800/60 dark:text-purple-200">
-            🏛️ หอประชุมวิชชาอัตศาสตร์ (อาคาร 17)
-          </span>
-          <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-600 dark:bg-purple-950/40 dark:border-purple-800/60 dark:text-purple-200">
-            🏟️ BRU DOME (อาคาร 23)
-          </span>
-          <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-600 dark:bg-purple-950/40 dark:border-purple-800/60 dark:text-purple-200">
-            ⚽ สนามกีฬากลาง มรภ.บุรีรัมย์ (อาคาร 20)
-          </span>
-          <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-600 dark:bg-purple-950/40 dark:border-purple-800/60 dark:text-purple-200">
-            🍲 ศูนย์อาหาร 1 & 2 (อาคาร 18, 19)
-          </span>
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Building2, AlertTriangle, 
   Tv, Monitor, Server, Wifi, Network, X, Activity,
-  Zap, TrendingUp, Stethoscope, Edit3, RefreshCw, Map, LayoutGrid, Globe
+  Zap, TrendingUp, Stethoscope, Edit3, RefreshCw, LayoutGrid
 } from 'lucide-react';
 import { Building, Device } from '../types';
 import { api } from '../api';
@@ -36,7 +36,28 @@ export const CampusView: React.FC<CampusViewProps> = ({
     sortedBuildings.length > 0 ? sortedBuildings[0].id : null
   );
   const [viewMode, setViewMode] = useState<'map' | 'google' | 'grid'>('map');
+  const [previousMapMode, setPreviousMapMode] = useState<'map' | 'google'>('map');
   const [checkingIds, setCheckingIds] = useState<number[]>([]);
+  const [gridSearch, setGridSearch] = useState<string>('');
+
+  const handleSwitchToMap = () => {
+    setPreviousMapMode('map');
+    setViewMode('map');
+  };
+
+  const handleSwitchToGoogle = () => {
+    setPreviousMapMode('google');
+    setViewMode('google');
+  };
+
+  const handleToggleBuildingList = () => {
+    if (viewMode === 'grid') {
+      setViewMode(previousMapMode);
+    } else {
+      setPreviousMapMode(viewMode);
+      setViewMode('grid');
+    }
+  };
 
   const selectedBuilding = sortedBuildings.find((b) => b.id === selectedBuildingId) || (sortedBuildings.length > 0 ? sortedBuildings[0] : null);
 
@@ -200,7 +221,7 @@ export const CampusView: React.FC<CampusViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Title & Add Building - BRU Themed */}
+      {/* Title & Top Action Bar - BRU Themed */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white flex items-center space-x-2.5">
@@ -211,12 +232,29 @@ export const CampusView: React.FC<CampusViewProps> = ({
             วิทยาเขตหลัก มรภ.บุรีรัมย์ — ตรวจสอบสถานะและคุณภาพสัญญาณเครือข่าย อาคาร 1 ถึง {buildings.length} (รวมหอประชุม, BRU DOME)
           </p>
         </div>
+
+        {/* Top Header Button for Building List (Circled in Red in Image 2) */}
+        <div className="flex items-center space-x-2 shrink-0">
+          <button
+            type="button"
+            onClick={handleToggleBuildingList}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold border shadow-xs transition cursor-pointer ${
+              viewMode === 'grid'
+                ? 'bg-purple-700 text-white border-purple-600 dark:bg-purple-800 dark:text-amber-300 dark:border-amber-400/50 shadow-md ring-2 ring-purple-400/40'
+                : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 dark:bg-[#1a1233] dark:hover:bg-purple-900/60 dark:text-purple-200 dark:border-purple-900/70'
+            }`}
+            title={viewMode === 'grid' ? `กลับไปดูแผนที่ (${previousMapMode === 'google' ? 'Google Maps' : 'ผังแม่บทพิมพ์เขียว'})` : "เปิดตารางรายชื่ออาคารทั้งหมด (1-110)"}
+          >
+            <LayoutGrid className="h-4 w-4 text-purple-600 dark:text-amber-400" />
+            <span>รายชื่ออาคาร ({buildings.length})</span>
+          </button>
+        </div>
       </div>
 
       {buildings.length === 0 ? (
         <div className="bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800 rounded-2xl p-12 text-center">
           <Building2 className="h-12 w-12 text-slate-500 mx-auto mb-3" />
-          <h3 className="text-base font-bold text-slate-900 dark:text-white">กำลังโหลดข้อมูลผังอาคาร 1–23...</h3>
+          <h3 className="text-base font-bold text-slate-900 dark:text-white">กำลังโหลดข้อมูลผังอาคาร 1–{buildings.length}...</h3>
           <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
             หากข้อมูลไม่แสดง กรุณารีเฟรชหน้าจอ หรือตรวจสอบการเชื่อมต่อกับเซิร์ฟเวอร์
           </p>
@@ -238,91 +276,120 @@ export const CampusView: React.FC<CampusViewProps> = ({
                   }
                 }, 50);
               }}
-              onSwitchToGoogleMap={() => setViewMode('google')}
-              onSwitchToGrid={() => setViewMode('grid')}
+              onSwitchToGoogleMap={handleSwitchToGoogle}
             />
           )}
 
           {/* Google Maps Campus View */}
           {viewMode === 'google' && (
             <GoogleCampusMap
-              onSwitchToBlueprint={() => setViewMode('map')}
-              onSwitchToGrid={() => setViewMode('grid')}
+              buildings={sortedBuildings}
+              devices={devices}
+              selectedBuildingId={selectedBuilding?.id || null}
+              onSelectBuilding={(id) => {
+                setSelectedBuildingId(id);
+                setTimeout(() => {
+                  const el = document.getElementById('building-details-section');
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }, 50);
+              }}
+              onSwitchToBlueprint={handleSwitchToMap}
             />
           )}
 
-          {/* Quick Building Selector: Grid of อาคาร 1 ถึง 23 */}
+          {/* Quick Building Selector: Grid of อาคาร 1 ถึง 110 */}
           {viewMode === 'grid' && (
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs dark:bg-slate-900/60 dark:border-slate-800">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 pb-3 border-b border-slate-100 dark:border-slate-800 text-xs">
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs dark:bg-slate-900/60 dark:border-slate-800 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800 text-xs">
                 <div>
                   <span className="font-semibold text-slate-800 dark:text-slate-300 flex items-center space-x-1.5 text-xs sm:text-sm">
                     <Building2 className="h-4 w-4 text-purple-700 dark:text-amber-400" />
-                    <span>เลือกอาคารสำหรับตรวจดูสถานะสัญญาณ (อาคาร 1 ถึง {buildings.length}):</span>
+                    <span>เลือกอาคารสำหรับตรวจดูสถานะสัญญาณ (อาคารทั้งหมด {buildings.length} แห่ง):</span>
                   </span>
-                  <span className="text-[11px] text-slate-400 block mt-0.5">คลิกเลือกอาคารเพื่อดูรายละเอียดสัญญาณด้านล่าง</span>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('map')}
-                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-700 text-white hover:bg-purple-800 shadow-xs dark:bg-purple-800 dark:hover:bg-purple-700 dark:text-amber-200 transition cursor-pointer"
-                    title="กลับไปดูผังแม่บทพิมพ์เขียว"
-                  >
-                    <Map className="h-3.5 w-3.5" />
-                    <span>ผังแม่บทพิมพ์เขียว</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('google')}
-                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 dark:text-emerald-300 dark:border-emerald-500/30 transition cursor-pointer"
-                    title="สลับไปดู Google Maps ดาวเทียม"
-                  >
-                    <Globe className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                    <span>Google Maps</span>
-                  </button>
+                  <span className="text-[11px] text-slate-400 block mt-0.5">
+                    คลิกเลือกอาคารเพื่อดูรายละเอียดสัญญาณด้านล่าง หรือพิมพ์ค้นหาเลขหรือชื่ออาคาร (คลิกปุ่ม &quot;รายชื่ออาคาร&quot; ด้านบนอีกครั้งเพื่อปิด)
+                  </span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
-                {sortedBuildings.map((b) => {
-                  const isSelected = selectedBuilding?.id === b.id;
-                  const devList = devices.filter((d) => d.building_id === b.id);
-                  const hasOffline = devList.some((d) => d.status === 'OFFLINE');
+              {/* Search Bar for 110 Buildings */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={gridSearch}
+                  onChange={(e) => setGridSearch(e.target.value)}
+                  placeholder={`ค้นหาในอาคาร 1 ถึง ${buildings.length} เช่น 15, ครุศาสตร์, วิทยาศาสตร์, หอพัก, โรงอาหาร...`}
+                  className="flex-1 px-3 py-1.5 bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                />
+                {gridSearch && (
+                  <button
+                    onClick={() => setGridSearch('')}
+                    className="px-2.5 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white rounded-lg bg-slate-100 dark:bg-slate-800 cursor-pointer"
+                  >
+                    ล้างการค้นหา
+                  </button>
+                )}
+              </div>
 
-                  return (
-                    <button
-                      key={b.id}
-                      onClick={() => setSelectedBuildingId(b.id)}
-                      className={`relative p-2 rounded-xl border text-xs font-medium transition cursor-pointer flex flex-col items-center justify-center text-center ${
-                        isSelected
-                          ? 'bg-gradient-to-r from-purple-700 to-purple-800 border-purple-600 text-amber-200 shadow-md ring-2 ring-purple-400/40 dark:from-purple-800 dark:to-purple-900 dark:text-amber-300 dark:border-amber-400/50'
-                          : hasOffline
-                          ? 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/30 dark:border-rose-500/40 dark:text-rose-300 dark:hover:bg-rose-900/40'
-                          : devList.length > 0
-                          ? 'bg-slate-50 border-slate-200/90 text-slate-700 hover:border-purple-300 hover:bg-purple-50/40 dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-purple-950/60 dark:hover:border-purple-600/50'
-                          : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600 dark:bg-slate-900/50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-1">
-                        <span className="font-semibold">{b.name}</span>
-                        {hasOffline ? (
-                          <span className="flex h-2 w-2 relative" title="มีอุปกรณ์ดับ">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+              {/* Grid of All 110 Buildings */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 max-h-[460px] overflow-y-auto pr-1">
+                {sortedBuildings
+                  .filter((b) => {
+                    if (!gridSearch.trim()) return true;
+                    const q = gridSearch.toLowerCase().trim();
+                    const num = String(parseInt(b.code, 10) || parseInt(b.name.replace(/\D/g, ''), 10) || b.id);
+                    return b.name.toLowerCase().includes(q) || b.code.toLowerCase().includes(q) || num.includes(q) || (b.description || '').toLowerCase().includes(q);
+                  })
+                  .map((b) => {
+                    const isSelected = selectedBuilding?.id === b.id;
+                    const devList = devices.filter((d) => d.building_id === b.id);
+                    const hasOffline = devList.some((d) => d.status === 'OFFLINE');
+                    const num = parseInt(b.code, 10) || parseInt(b.name.replace(/\D/g, ''), 10) || b.id;
+
+                    return (
+                      <button
+                        key={b.id}
+                        onClick={() => {
+                          setSelectedBuildingId(b.id);
+                          setTimeout(() => {
+                            const el = document.getElementById('building-details-section');
+                            if (el) {
+                              el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                          }, 50);
+                        }}
+                        className={`relative p-2.5 rounded-xl border text-left text-xs font-medium transition cursor-pointer flex flex-col justify-between ${
+                          isSelected
+                            ? 'bg-gradient-to-r from-purple-700 to-purple-800 border-purple-600 text-amber-200 shadow-md ring-2 ring-purple-400/40 dark:from-purple-800 dark:to-purple-900 dark:text-amber-300 dark:border-amber-400/50'
+                            : hasOffline
+                            ? 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/30 dark:border-rose-500/40 dark:text-rose-300 dark:hover:bg-rose-900/40'
+                            : devList.length > 0
+                            ? 'bg-slate-50 border-slate-200/90 text-slate-700 hover:border-purple-300 hover:bg-purple-50/40 dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-purple-950/60 dark:hover:border-purple-600/50'
+                            : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 dark:bg-slate-900/50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-1 w-full">
+                          <span className="font-bold truncate text-[11px] leading-tight">
+                            #{num} {b.name}
                           </span>
-                        ) : devList.length > 0 ? (
-                          <span className="h-2 w-2 rounded-full bg-emerald-500" title="อุปกรณ์ออนไลน์" />
-                        ) : null}
-                      </div>
+                          {hasOffline ? (
+                            <span className="flex h-2.5 w-2.5 relative shrink-0 mt-0.5" title="มีอุปกรณ์ดับ">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                            </span>
+                          ) : devList.length > 0 ? (
+                            <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0 mt-0.5" title="อุปกรณ์ออนไลน์" />
+                          ) : null}
+                        </div>
 
-                      <span className={`text-[10px] mt-0.5 ${isSelected ? 'text-amber-100' : 'text-slate-400'}`}>
-                        {devList.length > 0 ? `${devList.length} เครื่อง` : 'ยังไม่มีอุปกรณ์'}
-                      </span>
-                    </button>
-                  );
-                })}
+                        <span className={`text-[10px] mt-1.5 ${isSelected ? 'text-amber-100' : 'text-slate-400'}`}>
+                          {devList.length > 0 ? `${devList.length} เครื่อง` : 'ยังไม่มีอุปกรณ์'}
+                        </span>
+                      </button>
+                    );
+                  })}
               </div>
             </div>
           )}

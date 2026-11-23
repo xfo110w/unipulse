@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -5,8 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.database import get_db
-from backend.models import Building, Room
-from backend.schemas import BuildingCreate, BuildingRead, RoomCreate, RoomRead
+from backend.models import Building, Room, BuildingPin
+from backend.schemas import (
+    BuildingCreate, BuildingRead, RoomCreate, RoomRead,
+    BuildingPinCreate, BuildingPinRead
+)
 
 router = APIRouter(prefix="/api/v1/locations", tags=["Locations"])
 
@@ -72,4 +76,46 @@ async def delete_room(room_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Room not found")
     await db.delete(room)
     await db.commit()
+    return None
+
+# ==========================================
+# Building Pins API (Custom Pinning for Google Maps)
+# ==========================================
+@router.get("/building-pins", response_model=List[BuildingPinRead])
+async def list_building_pins(db: AsyncSession = Depends(get_db)):
+    """Returns all custom pinned building coordinates for Google Maps"""
+    stmt = select(BuildingPin).order_by(BuildingPin.building_id)
+    res = await db.execute(stmt)
+    return res.scalars().all()
+
+@router.post("/building-pins", response_model=BuildingPinRead)
+async def set_building_pin(payload: BuildingPinCreate, db: AsyncSession = Depends(get_db)):
+    """Saves or updates custom pinned coordinate for a building"""
+    stmt = select(BuildingPin).where(BuildingPin.building_id == payload.building_id)
+    pin = (await db.execute(stmt)).scalar_one_or_none()
+    now = datetime.now(timezone.utc)
+    if pin:
+        pin.lat = payload.lat
+        pin.lng = payload.lng
+        pin.updated_at = now
+    else:
+        pin = BuildingPin(
+            building_id=payload.building_id,
+            lat=payload.lat,
+            lng=payload.lng,
+            updated_at=now
+        )
+        db.add(pin)
+    await db.commit()
+    await db.refresh(pin)
+    return pin
+
+@router.delete("/building-pins/{building_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_building_pin(building_id: int, db: AsyncSession = Depends(get_db)):
+    """Deletes custom pinned coordinate for a building"""
+    stmt = select(BuildingPin).where(BuildingPin.building_id == building_id)
+    pin = (await db.execute(stmt)).scalar_one_or_none()
+    if pin:
+        await db.delete(pin)
+        await db.commit()
     return None
