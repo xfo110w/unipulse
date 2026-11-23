@@ -301,7 +301,7 @@ export const DeviceModal: React.FC<DeviceModalProps> = ({
               <input
                 type="text"
                 required
-                placeholder={isSimulation ? "127.0.0.1" : "เช่น 10.153.1.50 หรือ 192.168.1.50"}
+                placeholder={isSimulation ? "127.0.0.1" : "เช่น 10.153.1.50, 192.168.1.1 หรือ 8.8.8.8"}
                 value={ipAddress}
                 onChange={(e) => setIpAddress(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white font-mono focus:outline-none focus:border-purple-600 dark:focus:border-amber-400"
@@ -313,7 +313,7 @@ export const DeviceModal: React.FC<DeviceModalProps> = ({
                   </span>
                 ) : (
                   <span className="text-slate-500 dark:text-slate-400">
-                    🛡️ ความปลอดภัย: อนุญาตเฉพาะวงเครือข่ายภายในมหาวิทยาลัย (เช่น 10.153.x.x, 192.168.x.x)
+                    💡 รองรับ IP Address หรือ Hostname ได้ทุกวงเครือข่าย (เช่น 10.153.x.x, 192.168.x.x หรือ Public IP)
                   </span>
                 )}
               </p>

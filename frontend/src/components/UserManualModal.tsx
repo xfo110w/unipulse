@@ -272,14 +272,14 @@ export const UserManualModal: React.FC<UserManualModalProps> = ({ isOpen, onClos
                 <div className="p-4 rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50/60 dark:bg-purple-950/30 space-y-2">
                   <h4 className="font-bold text-purple-900 dark:text-amber-300 flex items-center space-x-2 text-xs sm:text-sm">
                     <ShieldCheck className="h-4 w-4" />
-                    <span>3. ระบบความปลอดภัยของ IP (IP Whitelisting & Simulator Mode)</span>
+                    <span>3. ระบบตรวจสอบ IP (IP Validation & Simulator Mode)</span>
                   </h4>
                   <div className="text-xs space-y-2 text-slate-700 dark:text-purple-200">
                     <p>
-                      <strong>🛡️ การป้องกัน SSRF:</strong> ระบบไม่อนุญาตให้นำ Public IP ภายนอก (เช่น 8.8.8.8) หรือ IP แปลกปลอมมากรอก เพื่อป้องกันการใช้ระบบเป็นฐานสแกนเจาะระบบเครือข่าย โดยจะอนุญาตเฉพาะวงเครือข่ายภายในของมหาวิทยาลัย (เช่น 10.153.x.x) เท่านั้น
+                      <strong>🌐 ความยืดหยุ่นของ IP Address:</strong> ระบบรองรับ IP Address ทุกวงเครือข่าย ทั้งวงภายในมหาวิทยาลัย (เช่น 10.153.x.x, 192.168.x.x), วงเครือข่ายภายนอก (Public IP) หรือ Hostname
                     </p>
                     <p>
-                      <strong>🧪 การทดสอบด้วยอุปกรณ์จำลอง (Simulator):</strong> หากต้องการทดสอบด้วยสคริปต์ <code>mock_switch.py</code> หรือ <code>mock_devices.py</code> บนเครื่อง ให้ <strong>ติ๊กเลือกช่อง [✓] "ใช้อุปกรณ์จำลองสำหรับทดสอบ (Simulator / Mock Device)"</strong> ระบบจะอนุญาตให้ใช้ IP <code>127.0.0.1</code> ได้อย่างปลอดภัย พร้อมติดป้ายกำกับ <code>🧪 จำลอง</code> ในตาราง
+                      <strong>🧪 การทดสอบด้วยอุปกรณ์จำลอง (Simulator):</strong> หากต้องการทดสอบด้วยสคริปต์ <code>mock_switch.py</code> หรือ <code>mock_devices.py</code> บนเครื่อง ให้ <strong>ติ๊กเลือกช่อง [✓] "ใช้อุปกรณ์จำลองสำหรับทดสอบ (Simulator / Mock Device)"</strong> ระบบจะอนุญาตให้ใช้ IP <code>127.0.0.1</code> ได้อย่างสะดวก พร้อมติดป้ายกำกับ <code>🧪 จำลอง</code> ในตาราง
                     </p>
                   </div>
                 </div>

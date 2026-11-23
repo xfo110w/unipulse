@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-  Globe, ExternalLink, MapPin, Layers, ZoomIn, ZoomOut, 
+  Globe, MapPin, Layers, ZoomIn, ZoomOut, 
   RotateCcw, Compass, ShieldCheck, Info, Check, Trash2, 
   AlertTriangle, CheckCircle2, Crosshair, ChevronDown, Search, X, Map as MapIcon,
   Hand
@@ -140,8 +140,6 @@ export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
 
   // Dragging individual pin state
   const [draggingPinBuildingId, setDraggingPinBuildingId] = useState<number | null>(null);
-
-  const fullGoogleMapsUrl = 'https://www.google.com/maps/place/%E0%B8%A1%E0%B8%AB%E0%B8%B2%E0%B8%A7%E0%B8%B4%E0%B8%97%E0%B8%A2%E0%B8%B2%E0%B8%A5%E0%B8%B1%E0%B8%A2%E0%B8%A3%E0%B8%B2%E0%B8%8A%E0%B8%A0%E0%B8%B1%E0%B8%8F%E0%B8%9A%E0%B8%B8%E0%B8%A3%E0%B8%B1%E0%B8%A1%E0%B8%A2%E0%B9%8C/@14.98896,103.0983505,17.47z/data=!4m6!3m5!1s0x311995c5e2b147a3:0xf0469d0a80731b0!8m2!3d14.9908457!4d103.1024334!16s%2Fm%2F0cr2df0';
 
   // Measure container size
   useEffect(() => {
@@ -496,18 +494,6 @@ export const GoogleCampusMap: React.FC<GoogleCampusMapProps> = ({
               <span>ผังแม่บทพิมพ์เขียว</span>
             </button>
           )}
-
-          {/* Open full Google Maps link */}
-          <a
-            href={fullGoogleMapsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 dark:bg-purple-950/60 dark:hover:bg-purple-900/70 dark:text-purple-200 dark:border-purple-800 transition cursor-pointer shrink-0"
-            title="เปิดพิกัดนี้บน Google Maps ในแท็บใหม่"
-          >
-            <span>เปิด Google Maps เต็มจอ</span>
-            <ExternalLink className="h-3 w-3" />
-          </a>
         </div>
       </div>
 
