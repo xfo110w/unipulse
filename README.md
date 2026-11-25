@@ -26,6 +26,7 @@
 - 📖 **คู่มือการใช้งานระบบในตัว (Built-in User Manual)**: มีปุ่มเปิดคู่มือการใช้งานที่ Footer ด้านล่างสุด แสดงคำแนะนำการใช้งานอย่างละเอียดใน 4 หมวดหลัก (ภาพรวม, ผังอาคาร, อุปกรณ์, เหตุการณ์) ล็อกขนาดหน้าต่างคงที่พร้อมรองรับการเลื่อนอ่านด้วยลูกกลิ้งเมาส์
 - ⚡ **เสถียรบน Windows & Linux พร้อมตัวจำลอง (Cross-Platform Engine & Simulator)**: ระบบ Ping ทำงานผ่าน Background Thread Pool ที่เข้ากันได้กับ Windows ทุกรุ่น ทุกภาษา (ไม่ติดปัญหา Event Loop บน Windows) พร้อมสคริปต์ `mock_devices.py` และ `mock_switch.py` (รองรับทั้ง SNMP v2c และ v3) สำหรับทดสอบ
 - 🛡️ **ระบบตรวจสอบและรองรับ IP ครอบคลุม (Flexible IP Support & Simulator Mode)**: ตรวจสอบความถูกต้องของรูปแบบ IP Address และ Hostname โดยรองรับทั้งวงเครือข่ายภายในมหาวิทยาลัย (เช่น `10.153.0.0/16`), วงเครือข่ายภายนอก (Public IP) พร้อมแยกโหมดอุปกรณ์จำลอง (`127.0.0.1`) ไว้อย่างชัดเจน
+- 🔐 **ระบบเข้าสู่ระบบกลาง BRU SSO (Buriram Rajabhat University Single Sign-On)**: ยืนยันตัวตนผ่าน API กลางของมหาวิทยาลัยราชภัฏบุรีรัมย์ (`POST https://sso.bru.ac.th/api/login`) พร้อมระบบคัดกรองสิทธิ์ (RBAC) อนุญาตเฉพาะอาจารย์และเจ้าหน้าที่/บุคลากร พร้อมระบบ Whitelist สำหรับบัญชีทดสอบ โดยไม่เก็บรหัสผ่านลงฐานข้อมูลท้องถิ่น ปลอดภัยสูงสุด
 - 📲 **แจ้งเตือนทันทีผ่าน Telegram Bot**: แจ้งเตือนเข้ากลุ่มช่างเทคนิคทันทีเมื่ออุปกรณ์ดับ (OFFLINE) และแจ้งเมื่อกู้คืนกลับมา (RECOVERED) แบบ Asynchronous ไม่ทำให้ระบบหน่วง
 
 ---
@@ -43,8 +44,12 @@ flowchart TD
     subgraph CoreSystem["UniPulse Core System"]
         Engine["Monitoring Engine (Asynchronous Loop)<br>• Thread-Safe Ping (Win/Linux) • SNMP v2c/v3 (AES/SHA) • TCP/HTTP/PJLink<br>• Uptime & Incident Tracker"]
         DB[("SQLite / PostgreSQL<br>Auto-Seed Buildings 1–23")]
-        API["FastAPI REST Backend (Async SQLAlchemy)<br>• /api/v1/devices<br>• /api/v1/locations<br>• /api/v1/incidents<br>• /api/v1/stats"]
-        WebUI["React 19 + Tailwind CSS v4 Dashboard<br>• Interactive Campus Map (! Alert Pins)<br>• Performance Latency Graph<br>• Live Matrix & Incident Resolve"]
+        API["FastAPI REST Backend (Async SQLAlchemy)<br>• /api/v1/auth/login (SSO Proxy)<br>• /api/v1/devices<br>• /api/v1/locations<br>• /api/v1/incidents<br>• /api/v1/stats"]
+        WebUI["React 19 + Tailwind CSS v4 Dashboard<br>• BRU SSO Gateway (RBAC)<br>• Interactive Campus Map (! Alert Pins)<br>• Performance Latency Graph<br>• Live Matrix & Incident Resolve"]
+    end
+
+    subgraph ExternalAuth["ระบบยืนยันตัวตนกลาง (Authentication)"]
+        BRUSSO["🎓 BRU SSO Central Server<br>https://sso.bru.ac.th/api/login<br>(X-API-Key Protection)"]
     end
 
     subgraph Alerts["ระบบแจ้งเตือน (Notifications)"]
@@ -55,6 +60,8 @@ flowchart TD
     Engine --> DB
     DB --> API
     API --> WebUI
+    WebUI -->|Login Credentials| API
+    API -->|Validate Staff / User| BRUSSO
     Engine -->|Async Offline/Recovery Alert| Alerts
 ```
 
@@ -133,11 +140,28 @@ flowchart TD
   4. **เหตุการณ์ (Incidents):** วงจรชีวิตของ Incident เมื่ออุปกรณ์ดับ การรับเรื่อง (Acknowledge) และการบันทึกผลกู้คืน
 - ล็อกขนาดหน้าต่างคงที่ ไม่เด้งขยายตามปริมาณข้อความ พร้อมรองรับการเลื่อนอ่านด้วยลูกกลิ้งเมาส์ (Mouse Wheel) ได้อย่างลื่นไหล
 
+### 10. ระบบเข้าสู่ระบบกลาง BRU SSO (Buriram Rajabhat University Single Sign-On)
+- **เชื่อมต่อ API กลางของมหาวิทยาลัย:** เชื่อมต่อกับ `https://sso.bru.ac.th/api/login` ผ่าน Backend Proxy `/api/v1/auth/login` ตรวจสอบสถานะบัญชีกับฐานข้อมูลกลางของมหาวิทยาลัยราชภัฏบุรีรัมย์โดยตรง
+- **ระบบคัดกรองสิทธิ์ตามบทบาท (Role-Based Access Control - RBAC):**
+  - **อนุญาตอาจารย์และบุคลากร:** ตรวจสอบจากคุณสมบัติ `staff_id`, `departmentid`, `masterdepartmentid` หรือบทบาท Staff จาก SSO หากตรงเงื่อนไขจะอนุญาตให้เข้าสู่ระบบและนำชื่อ-นามสกุลไปแสดงบนแถบเมนูด้านบน
+  - **บล็อกบัญชีนักศึกษาทั่วไป:** จำกัดสิทธิ์การดูแลและแก้ไขโครงสร้างพื้นฐานเครือข่าย ป้องกันบัญชีนักศึกษาทั่วไปเข้าถึงหน้าบริหารจัดการระบบ (ส่งคืน HTTP 403 Forbidden พร้อมแจ้งเตือนชัดเจน)
+  - **ระบบ Whitelist สำหรับผู้ทดสอบ:** รองรับการกำหนดรายชื่อรหัสนักศึกษาที่ได้รับอนุญาตให้ทดสอบระบบล่วงหน้า (เช่น รหัสผู้ทดสอบ `660112230046`) ผ่านตัวแปร `ALLOWED_STUDENT_WHITELIST` ในไฟล์ `.env`
+- **ความปลอดภัยระดับสูงและการป้องกันข้อมูลรั่วไหล (Zero Credential Leakage):**
+  - กุญแจ `BRU_SSO_API_KEY` ถูกเก็บไว้ในไฟล์ `.env` บน Backend เท่านั้น และมีระบบ `.gitignore` ป้องกันไม่ให้หลุดขึ้น Git Repository
+  - หน้าต่าง Frontend ไม่รู้จัก API Key และไม่มีการบันทึกรหัสผ่านของผู้ใช้งานลงฐานข้อมูล UniPulse เพื่อความปลอดภัยตามมาตรฐาน PDPA
+
 ---
 
 ## 📝 บันทึกการปรับปรุงล่าสุด (Changelog)
 
-### เวอร์ชันอัปเดตล่าสุด (23 พฤศจิกายน 2569)
+### เวอร์ชันอัปเดตล่าสุด (25 พฤศจิกายน 2569)
+- 🔐 **เชื่อมต่อระบบเข้าสู่ระบบกลาง BRU SSO (Buriram Rajabhat University Single Sign-On):**
+  - พัฒนาโมดูล `backend/routers/auth.py` ทำหน้าที่เป็น Secure Gateway เชื่อมต่อไปยัง `https://sso.bru.ac.th/api/login` ด้วย `X-API-Key`
+  - เพิ่มระบบตรวจสิทธิ์ (RBAC): กรองอนุญาตเฉพาะอาจารย์และเจ้าหน้าที่/บุคลากร (`staff_id`, `departmentid`) และ Whitelist บัญชีนักศึกษาผู้ทดสอบระบบ (`660112230046`)
+  - หน้าต่างเข้าสู่ระบบ (`LoginView.tsx`) รองรับสถานะ Loading Spinner ระหว่างยืนยันสิทธิ์กับ SSO และแสดงข้อความแจ้งเตือนความผิดพลาดภาษาไทยอย่างชัดเจน
+  - ปรับปรุงการจัดเก็บ `BRU_SSO_API_KEY` ผ่านตัวแปรสภาพแวดล้อม (`.env`) ป้องกันกุญแจ API รั่วไหลขึ้น GitHub 100%
+
+### เวอร์ชัน (23 พฤศจิกายน 2569)
 - 📍 **เพิ่มระบบปักเลขอาคารบน Google Maps เอง (Custom Building Pinning on Google Maps):**
   - รองรับอาคารครบทั้ง **110 แห่ง** ตามเอกสารผังแม่บททางการของ มรภ.บุรีรัมย์
   - ระบบปักตำแหน่งและลากย้ายหมุดได้อิสระ บันทึกพิกัดจริง (Lat/Lng) ลงในฐานข้อมูล SQLite (`building_pins`) และ LocalStorage อัตโนมัติ
@@ -212,7 +236,9 @@ pip install -r backend/requirements.txt
 ```powershell
 copy .env.example .env
 ```
-*(หากต้องการใช้งานการแจ้งเตือน Telegram ให้ระบุ `TELEGRAM_BOT_TOKEN` และ `TELEGRAM_CHAT_ID` ในไฟล์ `.env` หรือตั้งค่าผ่านหน้าเว็บ)*
+*(กำหนดการตั้งค่าสำคัญในไฟล์ `.env`:)*
+- **BRU SSO Login:** ระบุ `BRU_SSO_API_KEY` สำหรับเชื่อมต่อระบบยืนยันตัวตนกลาง มรภ.บุรีรัมย์ (`https://sso.bru.ac.th/api/login`) พร้อมกำหนด `ALLOW_STUDENT_LOGIN=false` (อนุญาตเฉพาะอาจารย์/บุคลากร) และ `ALLOWED_STUDENT_WHITELIST=660112230046` สำหรับบัญชีผู้ทดสอบ
+- **Telegram Alert:** ระบุ `TELEGRAM_BOT_TOKEN` และ `TELEGRAM_CHAT_ID` หากต้องการรับการแจ้งเตือนอุปกรณ์ขัดข้องเข้ากลุ่ม Telegram ทันที (หรือตั้งค่าผ่านหน้าเว็บ)
 
 ### 3. ติดตั้งและ Build Frontend
 ```bash
@@ -300,6 +326,7 @@ unipulse/
 │   ├── alerts/
 │   │   └── telegram_notify.py   # Asynchronous Telegram Bot notification dispatcher
 │   └── routers/
+│       ├── auth.py              # Authentication router เชื่อมต่อ BRU SSO (/api/v1/auth/login) พร้อมตรวจสิทธิ์ RBAC
 │       ├── devices.py           # Device CRUD, manual ping, telemetry, logs & incidents
 │       ├── locations.py         # Campus buildings management
 │       ├── incidents.py         # Incident acknowledge & resolution
@@ -322,7 +349,7 @@ unipulse/
 │   │   │   ├── Navbar.tsx           # แถบนำทางหลักและตัวแจ้งเตือนสถานะ
 │   │   │   ├── SettingsView.tsx     # ตั้งค่าเวลาตรวจสอบและเชื่อมต่อ Telegram Bot
 │   │   │   ├── UserManualModal.tsx  # หน้าต่างคู่มือการใช้งานระบบ (4 หมวดหมู่หลัก)
-│   │   │   └── LoginView.tsx        # หน้าจอเข้าสู่ระบบเริ่มต้น (Prototype Authentication Gateway)
+│   │   │   └── LoginView.tsx        # หน้าจอเข้าสู่ระบบ BRU SSO (Buriram Rajabhat University Single Sign-On)
 │   │   ├── utils/
 │   │   │   └── date.ts          # จัดรูปแบบวันเวลาไทย (GMT+7) และคำนวณระยะเวลา
 │   │   ├── api.ts               # Frontend API client
