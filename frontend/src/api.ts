@@ -197,5 +197,19 @@ export const api = {
   async deleteBuildingPin(buildingId: number): Promise<void> {
     const res = await fetch(`${BASE_URL}/locations/building-pins/${buildingId}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Failed to delete building pin');
+  },
+
+  // BRU SSO Authentication
+  async login(username: string, password: string): Promise<{ success: boolean; message: string; username: string; token?: string; data?: any }> {
+    const res = await fetch(`${BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.detail || 'เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบชื่อผู้ใช้หรือรหัสผ่าน');
+    }
+    return data;
   }
 };

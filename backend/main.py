@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from backend.config import settings
 from backend.database import engine, Base
 from backend.monitor.scheduler import start_scheduler, stop_scheduler
-from backend.routers import devices, locations, incidents, stats, settings as settings_router
+from backend.routers import devices, locations, incidents, stats, settings as settings_router, auth
 from backend.init_defaults import ensure_default_buildings
 
 @asynccontextmanager
@@ -60,6 +60,7 @@ app.add_middleware(
 )
 
 # Include Routers
+app.include_router(auth.router)
 app.include_router(devices.router)
 app.include_router(locations.router)
 app.include_router(incidents.router)

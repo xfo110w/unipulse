@@ -58,16 +58,18 @@ export function App() {
 
   const toggleTheme = () => setIsDarkMode((prev) => !prev);
 
-  const handleLogin = (user: string, remember: boolean) => {
+  const handleLogin = (user: string, remember: boolean, token?: string) => {
     const uname = user.trim() || 'admin';
     setCurrentUser(uname);
     setIsLoggedIn(true);
     if (remember) {
       localStorage.setItem('unipulse_auth', 'true');
       localStorage.setItem('unipulse_user', uname);
+      if (token) localStorage.setItem('unipulse_token', token);
     } else {
       sessionStorage.setItem('unipulse_auth', 'true');
       sessionStorage.setItem('unipulse_user', uname);
+      if (token) sessionStorage.setItem('unipulse_token', token);
     }
   };
 
@@ -75,8 +77,10 @@ export function App() {
     setIsLoggedIn(false);
     sessionStorage.removeItem('unipulse_auth');
     sessionStorage.removeItem('unipulse_user');
+    sessionStorage.removeItem('unipulse_token');
     localStorage.removeItem('unipulse_auth');
     localStorage.removeItem('unipulse_user');
+    localStorage.removeItem('unipulse_token');
   };
 
   // Load all initial data

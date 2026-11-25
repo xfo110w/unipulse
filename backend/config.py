@@ -49,4 +49,26 @@ class Settings:
             load_dotenv(env_file, override=True)
         return os.getenv("TELEGRAM_CHAT_ID", "").strip()
 
+    # BRU SSO Login Configuration (Configured via .env)
+    BRU_SSO_LOGIN_URL: str = os.getenv("BRU_SSO_LOGIN_URL", "https://sso.bru.ac.th/api/login")
+
+    @property
+    def ALLOW_STUDENT_LOGIN(self) -> bool:
+        if env_file.exists():
+            load_dotenv(env_file, override=True)
+        return os.getenv("ALLOW_STUDENT_LOGIN", "false").lower() in ("true", "1", "yes")
+
+    @property
+    def ALLOWED_STUDENT_WHITELIST(self) -> str:
+        if env_file.exists():
+            load_dotenv(env_file, override=True)
+        return os.getenv("ALLOWED_STUDENT_WHITELIST", "660112230046").strip()
+
+    @property
+    def BRU_SSO_API_KEY(self) -> str:
+        if env_file.exists():
+            load_dotenv(env_file, override=True)
+        raw_key = os.getenv("BRU_SSO_API_KEY", "").strip()
+        return raw_key.strip("'\"")
+
 settings = Settings()

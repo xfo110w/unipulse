@@ -189,3 +189,15 @@ class BuildingPinRead(BaseModel):
     lat: float
     lng: float
     updated_at: datetime
+
+# Authentication Schemas (BRU SSO)
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class LoginResponse(BaseModel):
+    success: bool
+    message: str
+    username: str
+    token: Optional[str] = None
+    data: Optional[Dict[str, Any]] = None

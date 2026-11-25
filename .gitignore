@@ -47,3 +47,7 @@ frontend/dist/
 *.swo
 .DS_Store
 Thumbs.db
+
+# Postman
+.postman/
+postman/

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { User, Lock, Eye, EyeOff, LogIn, Sun, Moon, Info } from 'lucide-react';
+import { User, Lock, Eye, EyeOff, LogIn, Sun, Moon, Info, AlertCircle, Loader2 } from 'lucide-react';
+import { api } from '../api';
 
 interface LoginViewProps {
-  onLogin: (username: string, remember: boolean) => void;
+  onLogin: (username: string, remember: boolean, token?: string) => void;
   isDarkMode: boolean;
   onToggleTheme: () => void;
 }
@@ -16,11 +17,31 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In prototype mode without database, any credentials will succeed
-    onLogin(username.trim() || 'admin', rememberMe);
+    if (!username.trim()) {
+      setErrorMessage('กรุณากรอกชื่อผู้ใช้');
+      return;
+    }
+    if (!password) {
+      setErrorMessage('กรุณากรอกรหัสผ่าน');
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const result = await api.login(username.trim(), password);
+      onLogin(result.username || username.trim(), rememberMe, result.token);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -64,13 +85,23 @@ export const LoginView: React.FC<LoginViewProps> = ({
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
             
-            {/* Prototype Helper Box */}
+            {/* BRU SSO Information Box */}
             <div className="p-3 rounded-xl bg-purple-50/80 dark:bg-purple-950/30 border border-purple-200/80 dark:border-purple-800/60 text-[11px] text-purple-900 dark:text-purple-200/90 flex items-start space-x-2">
               <Info className="h-4 w-4 text-purple-700 dark:text-amber-400 shrink-0 mt-0.5" />
               <div className="leading-relaxed font-medium">
-                ระบบกำลังพัฒนาไม่สามารถใช้งานในส่วนนี้ได้
+                เข้าสู่ระบบด้วยบัญชี BRU SSO (สำหรับอาจารย์และเจ้าหน้าที่/บุคลากร มหาวิทยาลัยราชภัฏบุรีรัมย์)
               </div>
             </div>
+
+            {/* Error Message Alert */}
+            {errorMessage && (
+              <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-xs text-rose-700 dark:text-rose-300 flex items-start space-x-2 animate-in fade-in duration-150">
+                <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                <div className="leading-relaxed font-medium">
+                  {errorMessage}
+                </div>
+              </div>
+            )}
 
             {/* Username Input */}
             <div>
@@ -146,10 +177,20 @@ export const LoginView: React.FC<LoginViewProps> = ({
             <div className="pt-2">
               <button
                 type="submit"
-                className="w-full py-3 px-4 bg-purple-700 hover:bg-purple-800 dark:bg-purple-800 dark:hover:bg-purple-700 text-amber-200 hover:text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition-all duration-150 flex items-center justify-center space-x-2 cursor-pointer active:scale-98"
+                disabled={isLoading}
+                className="w-full py-3 px-4 bg-purple-700 hover:bg-purple-800 disabled:bg-purple-600/70 dark:bg-purple-800 dark:hover:bg-purple-700 dark:disabled:bg-purple-900/50 text-amber-200 hover:text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition-all duration-150 flex items-center justify-center space-x-2 cursor-pointer disabled:cursor-not-allowed active:scale-98"
               >
-                <LogIn className="h-4 w-4" />
-                <span>เข้าสู่ระบบ (Sign In)</span>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin text-amber-300" />
+                    <span>กำลังตรวจสอบสิทธิ์กับ BRU SSO...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="h-4 w-4" />
+                    <span>เข้าสู่ระบบ (Sign In)</span>
+                  </>
+                )}
               </button>
             </div>
           </form>
