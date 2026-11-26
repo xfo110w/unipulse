@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Server, AlertTriangle, Building2, Sliders, RefreshCw, ExternalLink, Sun, Moon, LogOut } from 'lucide-react';
+import { Activity, Server, AlertTriangle, Building2, Sliders, RefreshCw, Sun, Moon, LogOut } from 'lucide-react';
 import { DashboardStats } from '../types';
 
 interface NavbarProps {
@@ -71,7 +71,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Right Column: Refresh Controls, Health Indicator & bru.ac.th link */}
+          {/* Right Column: Refresh Controls & Health Indicator */}
           <div className="flex items-center justify-end space-x-2 shrink-0">
             {stats && (
               <div 
@@ -119,18 +119,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className={`h-1.5 w-1.5 rounded-full ${autoRefresh ? 'bg-emerald-500' : 'bg-slate-400'}`} />
               <span className="font-mono text-[11px]">{autoRefresh ? 'Auto 15s' : 'Manual'}</span>
             </button>
-
-            {/* Link to bru.ac.th */}
-            <a
-              href="https://www.bru.ac.th"
-              target="_blank"
-              rel="noreferrer"
-              className="hidden sm:flex items-center space-x-1 bg-amber-100/80 hover:bg-amber-200/80 text-amber-900 border border-amber-300 dark:bg-amber-400/10 dark:hover:bg-amber-400/20 dark:text-amber-300 dark:border-amber-400/30 px-2.5 py-1 rounded-lg text-xs font-medium transition shadow-xs"
-              title="เปิดหน้าเว็บไซต์หลัก มหาวิทยาลัยราชภัฏบุรีรัมย์"
-            >
-              <span>bru.ac.th</span>
-              <ExternalLink className="h-3 w-3" />
-            </a>
 
             {/* Logged-in User Badge */}
             {currentUser && (

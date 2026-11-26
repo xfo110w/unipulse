@@ -8,7 +8,7 @@ async def reset_to_clean():
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(ensure_default_buildings)
-    print("Database reset successfully! Buildings 1 to 23 and default rooms are initialized.")
+    print("Database reset successfully! Default buildings (1-110) are initialized.")
 
 if __name__ == "__main__":
     asyncio.run(reset_to_clean())

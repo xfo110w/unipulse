@@ -24,8 +24,8 @@ async def login(payload: LoginRequest):
 
     api_key = settings.BRU_SSO_API_KEY
 
-    # If API Key is not configured yet in .env, allow prototype login
-    if not api_key:
+    # If API Key is not configured yet (or still placeholder from .env.example), allow prototype login
+    if not api_key or api_key == "your_bru_sso_api_key_here":
         return LoginResponse(
             success=True,
             message="เข้าสู่ระบบโหมดทดสอบ (ยังไม่ได้ระบุ BRU_SSO_API_KEY ใน .env)",

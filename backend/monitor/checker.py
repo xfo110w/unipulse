@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone
 import platform
 import re
 import socket
@@ -114,7 +115,7 @@ async def check_http(
                 return True, latency, f"HTTP {resp.status_code} OK ({latency:.1f} ms)"
             else:
                 return False, latency, f"HTTP Status {resp.status_code} (Expected {expected_code})"
-    except asyncio.TimeoutError:
+    except (httpx.TimeoutException, asyncio.TimeoutError):
         return False, None, f"HTTP Request Timed Out ({timeout_sec}s)"
     except Exception as e:
         return False, None, f"HTTP Error: {str(e)}"
@@ -474,7 +475,12 @@ async def check_device_health(device) -> Tuple[bool, Optional[float], str, bool,
     elif check_type == "AGENT":
         if not device.last_seen:
             return False, None, "No heartbeat received yet", False, None
-        diff_sec = (time.time() - device.last_seen.timestamp())
+        last_seen_utc = (
+            device.last_seen.replace(tzinfo=timezone.utc)
+            if device.last_seen.tzinfo is None
+            else device.last_seen.astimezone(timezone.utc)
+        )
+        diff_sec = max(0.0, (datetime.now(timezone.utc) - last_seen_utc).total_seconds())
         if diff_sec > (device.check_interval * 2.5):
             return False, None, f"Agent Heartbeat Missed ({int(diff_sec)}s ago)", False, None
         return True, device.response_time_ms or 1.0, f"Agent Healthy (Last seen {int(diff_sec)}s ago)", False, None
